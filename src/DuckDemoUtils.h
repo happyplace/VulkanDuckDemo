@@ -1,5 +1,4 @@
-#ifndef VULKANDUCKDEMO_DUCKDEMOUTILS_H_
-#define VULKANDUCKDEMO_DUCKDEMOUTILS_H_
+#pragma once
 
 #include <memory>
 #include <stdexcept>
@@ -38,5 +37,3 @@ namespace DuckDemoUtils
         return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
     }
 }
-
-#endif // VULKANDUCKDEMO_DUCKDEMOUTILS_H_
