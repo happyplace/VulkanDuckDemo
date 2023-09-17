@@ -18,6 +18,7 @@ struct SDL_Window;
     }
 
 #define DUCK_DEMO_ASSERT SDL_assert
+#define DUCK_DEMO_VULKAN_ASSERT(X) DUCK_DEMO_ASSERT(VK_SUCCESS == X)
 
 namespace DuckDemoUtils
 {

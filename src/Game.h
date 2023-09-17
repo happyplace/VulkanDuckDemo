@@ -29,4 +29,8 @@ private:
     SDL_Window* m_window = nullptr;
 
     VkInstance m_instance = VK_NULL_HANDLE;
+    VkSurfaceKHR m_vulkanSurface = VK_NULL_HANDLE;
+#ifdef DUCK_DEMO_VULKAN_DEBUG
+    VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;
+#endif // DUCK_DEMO_VULKAN_DEBUG
 };

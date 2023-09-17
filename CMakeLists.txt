@@ -24,6 +24,8 @@ elseif (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
 endif()
 
 add_definitions(-DNOMINMAX)
+add_definitions(-DDUCK_DEMO_VULKAN_DEBUG)
+#add_definitions(-DDUCK_DEMO_VULKAN_PORTABILITY)
 
 include_directories(src)
 set(vdd-src
