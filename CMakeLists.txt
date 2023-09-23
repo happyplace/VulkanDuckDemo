@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.24.0 FATAL_ERROR)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 cmake_policy(SET CMP0054 NEW)
@@ -12,10 +12,12 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Only 64-bit builds supported.")
 endif()
 
+message(${CMAKE_C_COMPILER_ID})
+message(Andrew)
 if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall -Werror")
-elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall")
+elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
+    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall -Wextra")
 elseif (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
     # /GL and /EHs are required for boost.context
     set(MSVC_COMMON_FLAGS_PS "/nologo /W4 /MP /GL /EHs")
@@ -45,6 +47,7 @@ else()
 endif()
 
 target_compile_features(VulkanDuckDemo PRIVATE cxx_std_14)
+#set_property(TARGET VulkanDuckDemo PROPERTY COMPILE_WARNING_AS_ERROR ON)
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
     # use the SDL 2 included in the project for windows builds
