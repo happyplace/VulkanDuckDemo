@@ -17,6 +17,8 @@ Game* Game::Get()
 
 Game::~Game()
 {
+    vkDeviceWaitIdle(m_vulkanDevice);
+
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     if (m_debugReportCallbackExt)
     {
@@ -35,6 +37,11 @@ Game::~Game()
         }
 
         vkDestroyInstance(m_instance, s_allocator);
+    }
+
+    if (m_vulkanDevice)
+    {
+        vkDestroyDevice(m_vulkanDevice, s_allocator);
     }
 
     if (m_window)
@@ -57,6 +64,11 @@ int Game::Run(int argc, char** argv)
         return 1;
     }
 
+    if (!InitVulkanDevice())
+    {
+        return 1;
+    }
+
     m_gameTimer.Reset();
     while (!m_quit)
     {
@@ -74,6 +86,11 @@ int Game::Run(int argc, char** argv)
     }
 
     return 0;
+}
+
+void Game::QuitGame()
+{
+    m_quit = true;
 }
 
 bool Game::InitWindow()
@@ -129,12 +146,18 @@ bool Game::InitVulkanInstance()
         return false;
     }
 
-    std::vector<const char*> extensionNames(extensionCount);
-    if (!SDL_Vulkan_GetInstanceExtensions(m_window, &extensionCount, extensionNames.data()))
+    std::vector<const char*> activeExtensionNames(extensionCount);
+    if (!SDL_Vulkan_GetInstanceExtensions(m_window, &extensionCount, activeExtensionNames.data()))
     {
         DUCK_DEMO_SHOW_ERROR("Vulkan Initialization Fail", "Failed to get instance extension names");
         return false;
     }
+
+    uint32_t instanceExtensionCount;
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, nullptr));
+
+    std::vector<VkExtensionProperties> instanceExtensions(instanceExtensionCount);
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, instanceExtensions.data()));
 
     uint32_t instanceLayerCount;
     DUCK_DEMO_VULKAN_ASSERT(vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr));
@@ -178,16 +201,31 @@ bool Game::InitVulkanInstance()
 #ifdef DUCK_DEMO_VULKAN_PORTABILITY
     instanceInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
-    extensionNames.push_back("VK_KHR_portability_enumeration");
-    extensionNames.push_back("VK_KHR_get_physical_device_properties2");
+    activeExtensionNames.push_back("VK_KHR_portability_enumeration");
+    activeExtensionNames.push_back("VK_KHR_get_physical_device_properties2");
 #endif // DUCK_DEMO_VULKAN_PORTABILITY
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
-    extensionNames.push_back("VK_EXT_debug_report");
+    activeExtensionNames.push_back("VK_EXT_debug_report");
 #endif // DUCK_DEMO_VULKAN_DEBUG
 
-    instanceInfo.enabledExtensionCount = static_cast<uint32_t>(extensionNames.size());
-    instanceInfo.ppEnabledExtensionNames = extensionNames.data();
+    // check that requested extensions are actually supported
+    for (uint32_t i = 0; i < activeExtensionNames.size(); ++i)
+    {
+        bool requestedExtensionAvailable = false;
+        for (const VkExtensionProperties& extensionProperties : instanceExtensions)
+        {
+            if (strcmp(activeExtensionNames[i], extensionProperties.extensionName) == 0)
+            {
+                requestedExtensionAvailable = true;
+                break;
+            }
+        }
+        DUCK_DEMO_ASSERT(requestedExtensionAvailable);
+    }
+
+    instanceInfo.enabledExtensionCount = static_cast<uint32_t>(activeExtensionNames.size());
+    instanceInfo.ppEnabledExtensionNames = activeExtensionNames.data();
 
     DUCK_DEMO_VULKAN_ASSERT(vkCreateInstance(&instanceInfo, s_allocator, &m_instance));
 
@@ -203,6 +241,113 @@ bool Game::InitVulkanInstance()
 
     DUCK_DEMO_VULKAN_ASSERT(vkCreateDebugReportCallbackEXT(m_instance, &debugReportCreateInfo, s_allocator, &m_debugReportCallbackExt));
 #endif // DUCK_DEMO_VULKAN_DEBUG
+
+    return true;
+}
+
+bool Game::InitVulkanDevice()
+{
+    uint32_t gpuCount = 0;
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumeratePhysicalDevices(m_instance, &gpuCount, nullptr));
+
+    std::vector<VkPhysicalDevice> gpus(gpuCount);
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumeratePhysicalDevices(m_instance, &gpuCount, gpus.data()));
+
+    VkPhysicalDevice gpu;
+    int32_t graphicsQueueIndex = -1;
+    int8_t deviceTypeScore = -1;
+
+    for (uint32_t i = 0; i < gpuCount; ++i)
+    {
+        uint32_t queueFamilyPropertyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(gpus[i], &queueFamilyPropertyCount, nullptr);
+
+        VkPhysicalDeviceProperties deviceProperties;
+		vkGetPhysicalDeviceProperties(gpus[i], &deviceProperties);
+
+        std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(gpus[i], &queueFamilyPropertyCount, queueFamilyProperties.data());
+
+        for (uint32_t k = 0; k < queueFamilyPropertyCount; ++k)
+        {
+            VkQueueFamilyProperties familyProperty = queueFamilyProperties[k];
+
+            VkBool32 supportsPresent = false;
+			DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceSupportKHR(gpus[i], k, m_vulkanSurface, &supportsPresent));
+
+            if ((familyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supportsPresent)
+            {
+                if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceTypeScore < VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                {
+                    gpu = gpus[i];
+                    graphicsQueueIndex = k;
+                    deviceTypeScore = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+                    break;
+                }
+                else if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU && deviceTypeScore < VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+                {
+                    gpu = gpus[i];
+                    graphicsQueueIndex = k;
+                    deviceTypeScore = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+                }
+            }
+        }
+    }
+
+    if (graphicsQueueIndex <= -1)
+    {  
+        DUCK_DEMO_SHOW_ERROR("Vulkan Initialization Fail", "Did not find suitable queue which supports graphics, compute and presentation.");
+        return false;
+    }
+
+    m_graphicsQueueIndex = static_cast<uint32_t>(graphicsQueueIndex);
+
+    uint32_t deviceExtensionCount;
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(gpu, nullptr, &deviceExtensionCount, nullptr));
+
+    std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(gpu, nullptr, &deviceExtensionCount, deviceExtensions.data()));
+
+    std::vector<const char*> requiredExtensionNames;
+    requiredExtensionNames.push_back("VK_KHR_swapchain");
+
+    // check that requested device
+    for (uint32_t i = 0; i < requiredExtensionNames.size(); ++i)
+    {
+        bool requestedExtensionAvailableOnDevice = false;
+        for (const VkExtensionProperties& extensionProperties : deviceExtensions)
+        {
+            if (strcmp(requiredExtensionNames[i], extensionProperties.extensionName) == 0)
+            {
+                requestedExtensionAvailableOnDevice = true;
+                break;
+            }
+        }
+        DUCK_DEMO_ASSERT(requestedExtensionAvailableOnDevice);
+    }
+
+    VkDeviceQueueCreateInfo deviceQueueCreateInfo;
+    deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    deviceQueueCreateInfo.pNext = nullptr;
+    deviceQueueCreateInfo.flags = 0;
+    deviceQueueCreateInfo.queueCount = 1;
+    float queue_priority = 1.0f;
+    deviceQueueCreateInfo.pQueuePriorities = &queue_priority;
+
+    VkDeviceCreateInfo deviceCreateInfo;
+    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.pNext = nullptr;
+    deviceCreateInfo.flags = 0;
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
+    deviceCreateInfo.enabledLayerCount = 0;
+    deviceCreateInfo.ppEnabledLayerNames = nullptr;
+    deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensionNames.size());
+    deviceCreateInfo.ppEnabledExtensionNames = requiredExtensionNames.data();
+    deviceCreateInfo.pEnabledFeatures = nullptr;
+
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateDevice(gpu, &deviceCreateInfo, s_allocator, &m_vulkanDevice));
+    vkGetDeviceQueue(m_vulkanDevice, m_graphicsQueueIndex, 0, &m_vulkanQueue);
 
     return true;
 }
