@@ -13,3 +13,8 @@ DuckDemoGame::~DuckDemoGame()
     DUCK_DEMO_ASSERT(ms_instance == this);
     ms_instance = nullptr;
 }
+
+void DuckDemoGame::OnResize()
+{
+
+}

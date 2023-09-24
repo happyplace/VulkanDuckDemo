@@ -1,7 +1,5 @@
 #include "Game.h"
 
-#include <vector>
-
 #include <SDL_vulkan.h>
 
 #include "DuckDemoUtils.h"
@@ -29,13 +27,23 @@ Game::~Game()
     }
 #endif // DUCK_DEMO_VULKAN_DEBUG
 
+    for (VkImageView imageView : m_vulkanSwapchainImageViews)
+    {
+        vkDestroyImageView(m_vulkanDevice, imageView, nullptr);
+    }
+
+    if (m_vulkanSwapchain)
+    {
+        vkDestroySwapchainKHR(m_vulkanDevice, m_vulkanSwapchain, nullptr);
+    }
+
+    if (m_vulkanSurface)
+    {
+        vkDestroySurfaceKHR(m_instance, m_vulkanSurface, s_allocator);
+    }
+
     if (m_instance)
     {
-        if (m_vulkanSurface)
-        {
-            vkDestroySurfaceKHR(m_instance, m_vulkanSurface, s_allocator);
-        }
-
         vkDestroyInstance(m_instance, s_allocator);
     }
 
@@ -68,6 +76,13 @@ int Game::Run(int argc, char** argv)
     {
         return 1;
     }
+
+    if (!InitVulkanSwapChain())
+    {
+        return 1;
+    }
+
+    OnResize();
 
     m_gameTimer.Reset();
     while (!m_quit)
@@ -253,7 +268,6 @@ bool Game::InitVulkanDevice()
     std::vector<VkPhysicalDevice> gpus(gpuCount);
     DUCK_DEMO_VULKAN_ASSERT(vkEnumeratePhysicalDevices(m_instance, &gpuCount, gpus.data()));
 
-    VkPhysicalDevice gpu;
     int32_t graphicsQueueIndex = -1;
     int8_t deviceTypeScore = -1;
 
@@ -279,14 +293,14 @@ bool Game::InitVulkanDevice()
             {
                 if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceTypeScore < VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
                 {
-                    gpu = gpus[i];
+                    m_vulkanPhysicalDevice = gpus[i];
                     graphicsQueueIndex = k;
                     deviceTypeScore = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
                     break;
                 }
                 else if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU && deviceTypeScore < VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
                 {
-                    gpu = gpus[i];
+                    m_vulkanPhysicalDevice = gpus[i];
                     graphicsQueueIndex = k;
                     deviceTypeScore = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
                 }
@@ -303,10 +317,10 @@ bool Game::InitVulkanDevice()
     m_graphicsQueueIndex = static_cast<uint32_t>(graphicsQueueIndex);
 
     uint32_t deviceExtensionCount;
-    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(gpu, nullptr, &deviceExtensionCount, nullptr));
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(m_vulkanPhysicalDevice, nullptr, &deviceExtensionCount, nullptr));
 
     std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
-    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(gpu, nullptr, &deviceExtensionCount, deviceExtensions.data()));
+    DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(m_vulkanPhysicalDevice, nullptr, &deviceExtensionCount, deviceExtensions.data()));
 
     std::vector<const char*> requiredExtensionNames;
     requiredExtensionNames.push_back("VK_KHR_swapchain");
@@ -346,8 +360,177 @@ bool Game::InitVulkanDevice()
     deviceCreateInfo.ppEnabledExtensionNames = requiredExtensionNames.data();
     deviceCreateInfo.pEnabledFeatures = nullptr;
 
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateDevice(gpu, &deviceCreateInfo, s_allocator, &m_vulkanDevice));
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateDevice(m_vulkanPhysicalDevice, &deviceCreateInfo, s_allocator, &m_vulkanDevice));
     vkGetDeviceQueue(m_vulkanDevice, m_graphicsQueueIndex, 0, &m_vulkanQueue);
+
+    return true;
+}
+
+bool Game::InitVulkanSwapChain()
+{
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_vulkanPhysicalDevice, m_vulkanSurface, &surfaceCapabilities));
+
+    uint32_t surfaceFormatCount;
+    DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(m_vulkanPhysicalDevice, m_vulkanSurface, &surfaceFormatCount, nullptr));
+    if (surfaceFormatCount <= 0)
+    {
+        DUCK_DEMO_ASSERT(surfaceFormatCount > 0);
+        return false;
+    }
+    std::vector<VkSurfaceFormatKHR> surfaceFormats(surfaceFormatCount);
+    DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(m_vulkanPhysicalDevice, m_vulkanSurface, &surfaceFormatCount, surfaceFormats.data()));
+
+    std::vector<VkFormat> preferredSurfaceFormats;
+    preferredSurfaceFormats.push_back(VK_FORMAT_R8G8B8A8_SRGB);
+    preferredSurfaceFormats.push_back(VK_FORMAT_B8G8R8A8_SRGB);
+    preferredSurfaceFormats.push_back(VK_FORMAT_A8B8G8R8_SRGB_PACK32);
+
+    VkSurfaceFormatKHR selectedSurfaceFormat;
+    selectedSurfaceFormat.format = VK_FORMAT_UNDEFINED;
+
+    for (VkSurfaceFormatKHR surfaceFormat : surfaceFormats)
+    {
+        if (selectedSurfaceFormat.format != VK_FORMAT_UNDEFINED)
+        {
+            break;
+        }
+
+        for (VkFormat preferredFormat : preferredSurfaceFormats)
+        {
+            if (surfaceFormat.format == preferredFormat)
+            {
+                selectedSurfaceFormat = surfaceFormat;
+                break;
+            }
+        } 
+    }
+
+    if (selectedSurfaceFormat.format == VK_FORMAT_UNDEFINED)
+    {
+        selectedSurfaceFormat = surfaceFormats[0];
+    }
+
+    VkExtent2D swapChainSize;
+    if (surfaceCapabilities.currentExtent.width == 0xffffffff)
+    {
+        int32_t windowWidth;
+        int32_t windowHeight;
+        SDL_GetWindowSize(m_window, &windowWidth, &windowHeight);
+
+        swapChainSize.width = windowWidth;
+        swapChainSize.height = windowHeight;
+    } 
+    else
+    {
+        swapChainSize = surfaceCapabilities.currentExtent;
+    }
+
+    VkPresentModeKHR swapChainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+    uint32_t swapChainImageCount = std::max(1u, surfaceCapabilities.minImageCount);
+
+    VkSurfaceTransformFlagBitsKHR preTransform;
+    if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+    {
+        preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    }
+    else
+    {
+        preTransform = surfaceCapabilities.currentTransform;
+    }
+
+    VkSwapchainKHR oldSwapchain = m_vulkanSwapchain;
+
+    VkCompositeAlphaFlagBitsKHR compositeAlphaFlagBits = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    if (surfaceCapabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+    {
+        compositeAlphaFlagBits = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    }
+    else if (surfaceCapabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
+    {
+        compositeAlphaFlagBits = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    }
+    else if (surfaceCapabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+    {
+        compositeAlphaFlagBits = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+    }
+    else if (surfaceCapabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
+    {
+        compositeAlphaFlagBits = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+    }
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfo;
+    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfo.pNext = nullptr;
+    swapchainCreateInfo.flags = 0;
+    swapchainCreateInfo.surface = m_vulkanSurface;
+    swapchainCreateInfo.minImageCount = swapChainImageCount;
+    swapchainCreateInfo.imageFormat = selectedSurfaceFormat.format;
+    swapchainCreateInfo.imageColorSpace = selectedSurfaceFormat.colorSpace;
+    swapchainCreateInfo.imageExtent.width = swapChainSize.width;
+    swapchainCreateInfo.imageExtent.height = swapChainSize.height;
+    swapchainCreateInfo.imageArrayLayers = 1;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapchainCreateInfo.queueFamilyIndexCount = 0;
+    swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+    swapchainCreateInfo.preTransform = preTransform;
+    swapchainCreateInfo.compositeAlpha = compositeAlphaFlagBits;
+    swapchainCreateInfo.presentMode = swapChainPresentMode;
+    swapchainCreateInfo.clipped = true;
+    swapchainCreateInfo.oldSwapchain = oldSwapchain;
+
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateSwapchainKHR(m_vulkanDevice, &swapchainCreateInfo, nullptr, &m_vulkanSwapchain));
+
+    if (oldSwapchain != VK_NULL_HANDLE)
+    {
+        for (VkImageView imageView : m_vulkanSwapchainImageViews)
+        {
+            vkDestroyImageView(m_vulkanDevice, imageView, nullptr);
+        }
+
+        uint32_t imageCount;
+        DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, oldSwapchain, &imageCount, nullptr));
+
+        m_vulkanSwapchainImageViews.clear();
+
+        vkDestroySwapchainKHR(m_vulkanDevice, oldSwapchain, nullptr);
+    }
+
+    m_vulkanSwapchainWidth = swapChainSize.width;
+    m_vulkanSwapchainHeight = swapChainSize.height;
+    m_vulkanSwapchainPixelFormat = selectedSurfaceFormat.format;
+
+    DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, m_vulkanSwapchain, &swapChainImageCount, nullptr));
+
+    std::vector<VkImage> swapchainImages(swapChainImageCount);
+    DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, m_vulkanSwapchain, &swapChainImageCount, swapchainImages.data()));
+
+    for (uint32_t i = 0; i < swapChainImageCount; ++i)
+    {
+        VkImageViewCreateInfo imageViewCreateInfo;
+        imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        imageViewCreateInfo.pNext = nullptr;
+        imageViewCreateInfo.flags = 0;
+        imageViewCreateInfo.image = swapchainImages[i];
+        imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        imageViewCreateInfo.format = m_vulkanSwapchainPixelFormat;
+        imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+        imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+        imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+        imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+        imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+        imageViewCreateInfo.subresourceRange.levelCount = 1;
+        imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+        imageViewCreateInfo.subresourceRange.layerCount = 1; 
+
+        VkImageView imageView;
+        DUCK_DEMO_VULKAN_ASSERT(vkCreateImageView(m_vulkanDevice, &imageViewCreateInfo, nullptr, &imageView));
+
+        m_vulkanSwapchainImageViews.push_back(imageView);
+    }
 
     return true;
 }

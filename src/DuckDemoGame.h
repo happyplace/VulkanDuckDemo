@@ -6,5 +6,8 @@ class DuckDemoGame : public Game
 {
 public:
     DuckDemoGame();
-    ~DuckDemoGame();
+    virtual ~DuckDemoGame() override;
+
+private:
+    virtual void OnResize() override;
 };
