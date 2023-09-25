@@ -10,4 +10,5 @@ public:
 
 private:
     virtual void OnResize() override;
+    virtual void OnUpdate(const GameTimer& gameTimer) override;
 };

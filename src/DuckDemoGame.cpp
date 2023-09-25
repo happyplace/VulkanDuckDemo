@@ -18,3 +18,8 @@ void DuckDemoGame::OnResize()
 {
 
 }
+
+void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
+{
+
+}

@@ -28,8 +28,12 @@ private:
     bool InitVulkanInstance();
     bool InitVulkanDevice();
     bool InitVulkanSwapChain();
+
+    void Update();
+    void Resize();
     
     virtual void OnResize() = 0;
+    virtual void OnUpdate(const GameTimer& gameTimer) = 0;
 
     bool m_quit = false;
     GameTimer m_gameTimer;
@@ -47,6 +51,7 @@ private:
     uint32_t m_vulkanSwapchainWidth = 0;
     uint32_t m_vulkanSwapchainHeight = 0;
     VkFormat m_vulkanSwapchainPixelFormat = VK_FORMAT_UNDEFINED;
+    VkSemaphore m_vulkanAquireSwapchainImage = VK_NULL_HANDLE;
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;
 #endif // DUCK_DEMO_VULKAN_DEBUG

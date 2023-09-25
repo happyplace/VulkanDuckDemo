@@ -27,6 +27,11 @@ Game::~Game()
     }
 #endif // DUCK_DEMO_VULKAN_DEBUG
 
+    if (m_vulkanAquireSwapchainImage)
+    {
+        vkDestroySemaphore(m_vulkanDevice, m_vulkanAquireSwapchainImage, s_allocator);
+    }
+
     for (VkImageView imageView : m_vulkanSwapchainImageViews)
     {
         vkDestroyImageView(m_vulkanDevice, imageView, nullptr);
@@ -98,9 +103,55 @@ int Game::Run(int argc, char** argv)
         }
 
         m_gameTimer.Tick();
+
+        Update();
     }
 
     return 0;
+}
+
+void Game::Update()
+{
+    uint32_t currentSwapchainImageIndex;
+    VkResult acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchainImage, VK_NULL_HANDLE, &currentSwapchainImageIndex);
+    if (acquireImageResult == VK_SUBOPTIMAL_KHR || acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        Resize();
+        acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchainImage, VK_NULL_HANDLE, &currentSwapchainImageIndex);
+    }
+    else
+    {
+        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
+    }
+
+    if (acquireImageResult != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
+        vkQueueWaitIdle(m_vulkanQueue);
+        return;
+    }
+
+    OnUpdate(m_gameTimer);
+}
+
+void Game::Resize()
+{
+    DUCK_DEMO_ASSERT(m_vulkanPhysicalDevice != VK_NULL_HANDLE);
+
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    DUCK_DEMO_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_vulkanPhysicalDevice, m_vulkanSurface, &surfaceCapabilities));
+
+    if (surfaceCapabilities.currentExtent.width == m_vulkanSwapchainWidth &&
+        surfaceCapabilities.currentExtent.height == m_vulkanSwapchainHeight)
+    {
+        return;
+    }
+
+    vkDeviceWaitIdle(m_vulkanDevice);
+
+    InitVulkanSwapChain();
+
+    OnResize();
 }
 
 void Game::QuitGame()
@@ -531,6 +582,12 @@ bool Game::InitVulkanSwapChain()
 
         m_vulkanSwapchainImageViews.push_back(imageView);
     }
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo;
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = nullptr;
+    semaphoreCreateInfo.flags = 0;
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateSemaphore(m_vulkanDevice, &semaphoreCreateInfo, s_allocator, &m_vulkanAquireSwapchainImage));
 
     return true;
 }
