@@ -112,12 +112,11 @@ int Game::Run(int argc, char** argv)
 
 void Game::Update()
 {
-    uint32_t currentSwapchainImageIndex;
-    VkResult acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchainImage, VK_NULL_HANDLE, &currentSwapchainImageIndex);
+    VkResult acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchainImage, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
     if (acquireImageResult == VK_SUBOPTIMAL_KHR || acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         Resize();
-        acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchainImage, VK_NULL_HANDLE, &currentSwapchainImageIndex);
+        acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchainImage, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
     }
     else
     {
@@ -132,6 +131,29 @@ void Game::Update()
     }
 
     OnUpdate(m_gameTimer);
+}
+
+void Game::PresentAndWaitForFrame()
+{
+    VkPresentInfoKHR presentInfo;
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.pNext = nullptr;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &m_vulkanAquireSwapchainImage;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &m_vulkanSwapchain;
+    presentInfo.pImageIndices = &m_currentSwapchainImageIndex;
+    presentInfo.pResults = nullptr;
+
+    VkResult queuePresentResult = vkQueuePresentKHR(m_vulkanQueue, &presentInfo);
+    if (queuePresentResult == VK_SUBOPTIMAL_KHR || queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        Resize();
+    }
+    else
+    {
+        DUCK_DEMO_VULKAN_ASSERT(queuePresentResult);
+    }
 }
 
 void Game::Resize()
@@ -328,7 +350,7 @@ bool Game::InitVulkanDevice()
         vkGetPhysicalDeviceQueueFamilyProperties(gpus[i], &queueFamilyPropertyCount, nullptr);
 
         VkPhysicalDeviceProperties deviceProperties;
-		vkGetPhysicalDeviceProperties(gpus[i], &deviceProperties);
+        vkGetPhysicalDeviceProperties(gpus[i], &deviceProperties);
 
         std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(gpus[i], &queueFamilyPropertyCount, queueFamilyProperties.data());
@@ -338,7 +360,7 @@ bool Game::InitVulkanDevice()
             VkQueueFamilyProperties familyProperty = queueFamilyProperties[k];
 
             VkBool32 supportsPresent = false;
-			DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceSupportKHR(gpus[i], k, m_vulkanSurface, &supportsPresent));
+            DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceSupportKHR(gpus[i], k, m_vulkanSurface, &supportsPresent));
 
             if ((familyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) && supportsPresent)
             {

@@ -23,6 +23,8 @@ public:
 protected:
     static Game* ms_instance;
 
+    void PresentAndWaitForFrame();
+
 private:
     bool InitWindow();
     bool InitVulkanInstance();
@@ -52,6 +54,7 @@ private:
     uint32_t m_vulkanSwapchainHeight = 0;
     VkFormat m_vulkanSwapchainPixelFormat = VK_FORMAT_UNDEFINED;
     VkSemaphore m_vulkanAquireSwapchainImage = VK_NULL_HANDLE;
+    uint32_t m_currentSwapchainImageIndex = 0;
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;
 #endif // DUCK_DEMO_VULKAN_DEBUG
