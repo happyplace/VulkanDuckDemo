@@ -9,6 +9,7 @@
 #include <SDL_messagebox.h>
 
 struct SDL_Window;
+struct VkAllocationCallbacks;
 
 #define DUCK_DEMO_SHOW_ERROR(title, message) \
     if (SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, std::string(title).c_str(), std::string(message).c_str(), DuckDemoUtils::GetWindow()) < 0) \
@@ -19,6 +20,8 @@ struct SDL_Window;
 
 #define DUCK_DEMO_ASSERT SDL_assert
 #define DUCK_DEMO_VULKAN_ASSERT(X) DUCK_DEMO_ASSERT(VK_SUCCESS == X)
+
+static VkAllocationCallbacks* s_allocator = nullptr;
 
 namespace DuckDemoUtils
 {
