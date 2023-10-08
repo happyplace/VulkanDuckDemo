@@ -136,6 +136,7 @@ int Game::Run(int argc, char** argv)
 
         Update();
         BeginRender();
+        OnRender();
         EndRender();
     }
 
@@ -144,24 +145,6 @@ int Game::Run(int argc, char** argv)
 
 void Game::Update()
 {
-    VkResult acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchain, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
-    if (acquireImageResult == VK_SUBOPTIMAL_KHR || acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-        Resize();
-        acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchain, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
-    }
-    else
-    {
-        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
-    }
-
-    if (acquireImageResult != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
-        vkQueueWaitIdle(m_vulkanQueue);
-        return;
-    }
-
     OnUpdate(m_gameTimer);
 }
 
@@ -690,14 +673,36 @@ bool Game::InitVulkanGameResources()
     return true;
 }
 
-void Game::BeginRender()
+bool Game::BeginRender()
 {
+    VkResult acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchain, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
+    if (acquireImageResult == VK_SUBOPTIMAL_KHR || acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        Resize();
+        acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchain, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
+    }
+    else
+    {
+        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
+    }
+
+    if (acquireImageResult != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
+        vkQueueWaitIdle(m_vulkanQueue);
+        return false;
+    }
+
+    DUCK_DEMO_VULKAN_ASSERT(vkResetCommandPool(m_vulkanDevice, m_vulkanPrimaryCommandPool, 0));
+
     VkCommandBufferBeginInfo commandBufferBeginInfo;
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     commandBufferBeginInfo.pNext = nullptr;
     commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     commandBufferBeginInfo.pInheritanceInfo = nullptr;
     DUCK_DEMO_VULKAN_ASSERT(vkBeginCommandBuffer(m_vulkanPrimaryCommandBuffer, &commandBufferBeginInfo));
+
+    return true;
 }
 
 void Game::EndRender()
@@ -721,15 +726,13 @@ void Game::EndRender()
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.pNext = nullptr;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &m_vulkanAquireSwapchain;
-    presentInfo.waitSemaphoreCount = 0;
-    presentInfo.pWaitSemaphores = nullptr;
+    presentInfo.pWaitSemaphores = &m_vulkanReleaseSwapchain;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &m_vulkanSwapchain;
     presentInfo.pImageIndices = &m_currentSwapchainImageIndex;
     presentInfo.pResults = nullptr;
 
-    VkResult queuePresentResult = vkQueuePresentKHR(m_vulkanQueue, &presentInfo);
+    const VkResult queuePresentResult = vkQueuePresentKHR(m_vulkanQueue, &presentInfo);
     if (queuePresentResult == VK_SUBOPTIMAL_KHR || queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         Resize();
@@ -740,4 +743,5 @@ void Game::EndRender()
     }
 
     DUCK_DEMO_VULKAN_ASSERT(vkWaitForFences(m_vulkanDevice, 1, &m_vulkanSubmitFence, VK_TRUE, UINT64_MAX));
+    vkResetFences(m_vulkanDevice, 1, &m_vulkanSubmitFence);
 }

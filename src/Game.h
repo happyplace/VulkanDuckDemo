@@ -51,7 +51,7 @@ private:
 
     void Update();
     void Resize();
-    void BeginRender();
+    bool BeginRender();
     void EndRender();
 
     bool m_quit = false;
