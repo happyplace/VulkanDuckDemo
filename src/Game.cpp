@@ -67,14 +67,14 @@ Game::~Game()
         vkDestroySurfaceKHR(m_instance, m_vulkanSurface, s_allocator);
     }
 
-    if (m_instance)
-    {
-        vkDestroyInstance(m_instance, s_allocator);
-    }
-
     if (m_vulkanDevice)
     {
         vkDestroyDevice(m_vulkanDevice, s_allocator);
+    }
+
+    if (m_instance)
+    {
+        vkDestroyInstance(m_instance, s_allocator);
     }
 
     if (m_window)
@@ -200,7 +200,10 @@ bool Game::InitFrameBuffers()
 
 void Game::DestroyFrameBuffers()
 {
-
+    for (VkFramebuffer frameBuffer : m_vulkanSwapchainFrameBuffers)
+    {
+        vkDestroyFramebuffer(m_vulkanDevice, frameBuffer, s_allocator);
+    }
 }
 
 void Game::QuitGame()
