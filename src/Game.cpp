@@ -667,8 +667,6 @@ bool Game::InitVulkanGameResources()
     DUCK_DEMO_VULKAN_ASSERT(vkCreateFence(m_vulkanDevice, &fenceCreateInfo, s_allocator, &m_vulkanSubmitFence));
 
     m_vulkanClearValue.color = {{ 0.392156869f, 0.58431375f, 0.929411769f, 1.0f }};
-    m_vulkanClearValue.depthStencil.depth = 0.0f;
-    m_vulkanClearValue.depthStencil.stencil = 0u;
 
     return true;
 }
