@@ -43,14 +43,14 @@ private:
     bool InitWindow();
     bool InitVulkanInstance();
     bool InitVulkanDevice();
-    bool InitVulkanSwapChain();
+    bool InitVulkanSwapChain(const int32_t width, const int32_t height);
     bool InitVulkanGameResources();
     bool InitFrameBuffers();
 
     void DestroyFrameBuffers();
 
     void Update();
-    void Resize();
+    void Resize(int32_t width = -1, int32_t height = -1);
     bool BeginRender();
     void EndRender();
 

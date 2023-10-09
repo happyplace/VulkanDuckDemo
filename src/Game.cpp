@@ -92,6 +92,10 @@ int Game::Run(int argc, char** argv)
         return 1;
     }
 
+    int32_t windowWidth;
+    int32_t windowHeight;
+    SDL_GetWindowSize(m_window, &windowWidth, &windowHeight);
+
     if (!InitVulkanInstance())
     {
         return 1;
@@ -102,7 +106,7 @@ int Game::Run(int argc, char** argv)
         return 1;
     }
 
-    if (!InitVulkanSwapChain())
+    if (!InitVulkanSwapChain(windowWidth, windowHeight))
     {
         return 1;
     }
@@ -117,7 +121,7 @@ int Game::Run(int argc, char** argv)
         return 1;
     }
 
-    Resize();
+    Resize(windowWidth, windowHeight);
 
     m_gameTimer.Reset();
     while (!m_quit)
@@ -129,6 +133,16 @@ int Game::Run(int argc, char** argv)
             {
                 m_quit = true;
                 break;
+            }
+            else if (sdlEvent.type == SDL_WINDOWEVENT)
+            {
+                if (sdlEvent.window.event == SDL_WINDOWEVENT_RESIZED)
+                {
+                    const Sint32 width = sdlEvent.window.data1;
+                    const Sint32 height = sdlEvent.window.data2;
+                    Resize(width, height);
+                    break;
+                }
             }
         }
 
@@ -148,8 +162,13 @@ void Game::Update()
     OnUpdate(m_gameTimer);
 }
 
-void Game::Resize()
+void Game::Resize(int32_t width /*= -1*/, int32_t height /*= -1*/)
 {
+    if (width < 0 || height < 0)
+    {
+        SDL_GetWindowSize(m_window, &width, &height);
+    }
+
     DUCK_DEMO_ASSERT(m_vulkanPhysicalDevice != VK_NULL_HANDLE);
 
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
@@ -165,7 +184,7 @@ void Game::Resize()
 
     DestroyFrameBuffers();
 
-    InitVulkanSwapChain();
+    InitVulkanSwapChain(width, height);
     InitFrameBuffers();
 
     OnResize();
@@ -219,7 +238,7 @@ bool Game::InitWindow()
         return false;
     }
 
-    m_window = SDL_CreateWindow("Vulkan Duck Demo", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1280, 720, SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN);
+    m_window = SDL_CreateWindow("Vulkan Duck Demo", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1280, 720, SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (m_window == nullptr)
     {
         DUCK_DEMO_SHOW_ERROR("Window Initialization Fail", DuckDemoUtils::format("SDL_CreateWindow\n%s", SDL_GetError()));
@@ -470,7 +489,7 @@ bool Game::InitVulkanDevice()
     return true;
 }
 
-bool Game::InitVulkanSwapChain()
+bool Game::InitVulkanSwapChain(const int32_t width, const int32_t height)
 {
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_vulkanPhysicalDevice, m_vulkanSurface, &surfaceCapabilities));
@@ -518,12 +537,8 @@ bool Game::InitVulkanSwapChain()
     VkExtent2D swapChainSize;
     if (surfaceCapabilities.currentExtent.width == 0xffffffff)
     {
-        int32_t windowWidth;
-        int32_t windowHeight;
-        SDL_GetWindowSize(m_window, &windowWidth, &windowHeight);
-
-        swapChainSize.width = windowWidth;
-        swapChainSize.height = windowHeight;
+        swapChainSize.width = width;
+        swapChainSize.height = height;
     } 
     else
     {
