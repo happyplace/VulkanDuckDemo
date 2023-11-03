@@ -12,8 +12,6 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Only 64-bit builds supported.")
 endif()
 
-message(${CMAKE_C_COMPILER_ID})
-message(Andrew)
 if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall")
 elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
