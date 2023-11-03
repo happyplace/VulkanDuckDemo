@@ -174,12 +174,6 @@ void Game::Resize(int32_t width /*= -1*/, int32_t height /*= -1*/)
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     DUCK_DEMO_VULKAN_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_vulkanPhysicalDevice, m_vulkanSurface, &surfaceCapabilities));
 
-    if (surfaceCapabilities.currentExtent.width == m_vulkanSwapchainWidth &&
-        surfaceCapabilities.currentExtent.height == m_vulkanSwapchainHeight)
-    {
-        return;
-    }
-
     vkDeviceWaitIdle(m_vulkanDevice);
 
     DestroyFrameBuffers();
