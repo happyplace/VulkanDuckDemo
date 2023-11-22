@@ -11,6 +11,47 @@ Game* Game::Get()
     return ms_instance;
 }
 
+VulkanBuffer::~VulkanBuffer()
+{
+    Reset();
+}
+
+void VulkanBuffer::Reset()
+{
+    if (m_buffer == VK_NULL_HANDLE && m_deviceMemory == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    m_deviceSize = 0;
+
+    Game* game = Game::Get();
+    if (game == nullptr)
+    {
+        DUCK_DEMO_ASSERT(game);
+        return;
+    }
+    
+    VkDevice vulkanDevice = game->GetVulkanDevice();
+    if (vulkanDevice == VK_NULL_HANDLE)
+    {
+        DUCK_DEMO_ASSERT(vulkanDevice != VK_NULL_HANDLE);
+        return;
+    }
+
+    if (m_buffer != VK_NULL_HANDLE)
+    {
+        vkDestroyBuffer(vulkanDevice, m_buffer, s_allocator);
+        m_buffer = VK_NULL_HANDLE;
+    }
+
+    if (m_deviceMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(vulkanDevice, m_deviceMemory, s_allocator);
+        m_deviceMemory = VK_NULL_HANDLE;
+    }
+}
+
 Game::~Game()
 {
     vkDeviceWaitIdle(m_vulkanDevice);
@@ -25,7 +66,7 @@ Game::~Game()
     }
 #endif // DUCK_DEMO_VULKAN_DEBUG
 
-    DestroyFrameBuffers();
+    shaderc_compiler_release(m_shaderCompiler);
 
     if (m_vulkanPrimaryCommandBuffer)
     {
@@ -116,6 +157,12 @@ int Game::Run(int argc, char** argv)
         return 1;
     }
 
+    m_shaderCompiler = shaderc_compiler_initialize();
+    if (m_shaderCompiler == nullptr)
+    {
+        return 1;
+    }
+
     if (!OnInit())
     {
         return 1;
@@ -176,47 +223,9 @@ void Game::Resize(int32_t width /*= -1*/, int32_t height /*= -1*/)
 
     vkDeviceWaitIdle(m_vulkanDevice);
 
-    DestroyFrameBuffers();
-
     InitVulkanSwapChain(width, height);
-    InitFrameBuffers();
 
     OnResize();
-}
-
-bool Game::InitFrameBuffers()
-{
-    m_vulkanSwapchainFrameBuffers.clear();
-
-    VkFramebufferCreateInfo frameBufferCreateInfo;
-    frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    frameBufferCreateInfo.pNext = nullptr;
-    frameBufferCreateInfo.flags = 0;
-    frameBufferCreateInfo.renderPass = GetRenderPass();
-    frameBufferCreateInfo.width = m_vulkanSwapchainWidth;
-    frameBufferCreateInfo.height = m_vulkanSwapchainHeight;
-    frameBufferCreateInfo.layers = 1;
-
-    for (VkImageView imageView : m_vulkanSwapchainImageViews)
-    {
-        frameBufferCreateInfo.attachmentCount = 1;
-        frameBufferCreateInfo.pAttachments = &imageView;
-
-        VkFramebuffer framebuffer;
-        DUCK_DEMO_VULKAN_ASSERT(vkCreateFramebuffer(m_vulkanDevice, &frameBufferCreateInfo, s_allocator, &framebuffer));
-
-        m_vulkanSwapchainFrameBuffers.push_back(framebuffer);
-    }
-
-    return true;
-}
-
-void Game::DestroyFrameBuffers()
-{
-    for (VkFramebuffer frameBuffer : m_vulkanSwapchainFrameBuffers)
-    {
-        vkDestroyFramebuffer(m_vulkanDevice, frameBuffer, s_allocator);
-    }
 }
 
 void Game::QuitGame()
@@ -754,4 +763,137 @@ void Game::EndRender()
 
     DUCK_DEMO_VULKAN_ASSERT(vkWaitForFences(m_vulkanDevice, 1, &m_vulkanSubmitFence, VK_TRUE, UINT64_MAX));
     vkResetFences(m_vulkanDevice, 1, &m_vulkanSubmitFence);
+}
+
+VkResult Game::CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule)
+{
+    std::unique_ptr<DuckDemoFile> shaderFile = DuckDemoUtils::LoadFileFromDisk(path);
+    DUCK_DEMO_ASSERT(shaderFile);
+    if (shaderFile == nullptr)
+    {
+        return VK_ERROR_UNKNOWN;
+    }
+
+    shaderc_compilation_result_t result = shaderc_compile_into_spv(
+        m_shaderCompiler,
+        *shaderFile->buffer.get(),
+        shaderFile->bufferSize, shaderKind,
+        "Shader.file", "main", nullptr);
+
+    DUCK_DEMO_ASSERT(result);
+    if (result == nullptr)
+    {
+        return VK_ERROR_UNKNOWN;
+    }
+
+    const shaderc_compilation_status status = shaderc_result_get_compilation_status(result);
+    DUCK_DEMO_ASSERT(status == shaderc_compilation_status_success);
+    if (status != shaderc_compilation_status_success)
+    {
+        shaderc_result_release(result);
+        return VK_ERROR_UNKNOWN;
+    }
+
+    const uint32_t* shaderData = reinterpret_cast<const uint32_t*>(shaderc_result_get_bytes(result));
+    size_t shaderDataSize = shaderc_result_get_length(result);
+
+    constexpr uint32_t SPIRV_MAGIC = 0x07230203;
+    if (SPIRV_MAGIC != shaderData[0])
+    {
+        shaderc_result_release(result);
+        // shader data did not start with spir-v magic value
+        return VK_ERROR_UNKNOWN;
+    }
+
+    VkShaderModuleCreateInfo shaderModuleCreateInfo;
+    shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shaderModuleCreateInfo.pNext = nullptr;
+    shaderModuleCreateInfo.flags = 0;
+    shaderModuleCreateInfo.codeSize = shaderDataSize;
+    shaderModuleCreateInfo.pCode = shaderData;
+
+    VkResult vulkanResult = vkCreateShaderModule(m_vulkanDevice, &shaderModuleCreateInfo, s_allocator, OutShaderModule);
+    DUCK_DEMO_VULKAN_ASSERT(vulkanResult);
+
+    shaderc_result_release(result);
+
+    return vulkanResult;
+}
+
+int32_t Game::FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const
+{
+    VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(m_vulkanPhysicalDevice, &physicalDeviceMemoryProperties);
+    for (uint32_t i = 0; i < physicalDeviceMemoryProperties.memoryTypeCount; ++i)
+    {
+        VkMemoryType memoryType = physicalDeviceMemoryProperties.memoryTypes[i];
+        VkMemoryPropertyFlags memoryPropertyFlags = memoryType.propertyFlags;
+        if ((memoryTypeBits & (1<<i)) != 0)
+        {
+            if ((memoryPropertyFlags & memoryFlagBits) != 0)
+            {
+                return i;
+            }
+        }
+    }
+
+    const std::string errorString = DuckDemoUtils::format("Could not find given memory flag (0x%08x) and type (0x%08x))", memoryFlagBits, memoryFlagBits);
+    DUCK_DEMO_SHOW_ERROR("Critical Vulkan Error", errorString);
+    Game::Get()->QuitGame();
+    return -1;
+}
+
+VkResult Game::CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer)
+{
+    OutVulkanBuffer.Reset();
+
+    VkBufferCreateInfo bufferCreateInfo;
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.pNext = nullptr;
+    bufferCreateInfo.flags = 0;
+    bufferCreateInfo.size = deviceSize;
+    bufferCreateInfo.usage = bufferUsageFlagBits;
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+    VkResult result = vkCreateBuffer(m_vulkanDevice, &bufferCreateInfo, s_allocator, &OutVulkanBuffer.m_buffer);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return result;
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetBufferMemoryRequirements(m_vulkanDevice, OutVulkanBuffer.m_buffer, &memoryRequirements);
+
+    VkMemoryAllocateInfo memoryAllocateInfo;
+    memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryAllocateInfo.pNext = nullptr;
+    memoryAllocateInfo.allocationSize = memoryRequirements.size;
+
+    const int32_t memoryTypeIndex = FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryRequirements.memoryTypeBits);
+    if (memoryTypeIndex < 0)
+    {
+        return result;
+    }
+    memoryAllocateInfo.memoryTypeIndex = static_cast<uint32_t>(memoryTypeIndex);
+
+    result = vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &OutVulkanBuffer.m_deviceMemory);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return result;
+    }
+
+    result = vkBindBufferMemory(m_vulkanDevice, OutVulkanBuffer.m_buffer, OutVulkanBuffer.m_deviceMemory, 0);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return result;
+    }
+
+    OutVulkanBuffer.m_deviceSize = deviceSize;
+
+    return result;
 }

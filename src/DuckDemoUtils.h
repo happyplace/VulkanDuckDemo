@@ -21,11 +21,29 @@ struct VkAllocationCallbacks;
 #define DUCK_DEMO_ASSERT SDL_assert
 #define DUCK_DEMO_VULKAN_ASSERT(X) DUCK_DEMO_ASSERT(VK_SUCCESS == X)
 
+#ifndef DUCK_DEMO_ALIGN
+	#ifdef __GNUC__
+		#define DUCK_DEMO_ALIGN(x) __attribute__((aligned(x)))
+	#elif _WIN32
+		#define DUCK_DEMO_ALIGN(x) __declspec(align(x))
+	#else
+		#error not supported on compiler
+	#endif // __GNUC__
+#endif // DUCK_DEMO_ALIGN
+
 static VkAllocationCallbacks* s_allocator = nullptr;
+
+struct DuckDemoFile
+{
+    std::unique_ptr<char*> buffer;
+    std::size_t bufferSize = 0;
+};
 
 namespace DuckDemoUtils
 {
     SDL_Window* GetWindow();
+
+    std::unique_ptr<DuckDemoFile> LoadFileFromDisk(const std::string& path);
 
     template<typename ... Args>
     std::string format(const std::string& format, Args ... args)

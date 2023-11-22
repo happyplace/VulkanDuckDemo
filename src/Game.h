@@ -1,11 +1,24 @@
 #pragma once
 
+#include <memory>
 #include <vector>
+#include <string>
 
 #include <SDL.h>
 #include <vulkan/vulkan.h>
+#include "shaderc/shaderc.h" 
 
 #include "GameTimer.h"
+
+struct VulkanBuffer
+{
+    ~VulkanBuffer();
+    void Reset();
+
+	VkBuffer m_buffer = VK_NULL_HANDLE;
+	VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
+	VkDeviceSize m_deviceSize = 0;
+};
 
 class Game
 {
@@ -17,18 +30,21 @@ public:
     int Run(int argc, char** argv);
 
     SDL_Window* GetWindow() const { return m_window; }
+    VkDevice GetVulkanDevice() const { return m_vulkanDevice; }
 
     void QuitGame();
 
 protected:
     static Game* ms_instance;
 
-    virtual VkRenderPass GetRenderPass() = 0;
-
     virtual bool OnInit() = 0;
     virtual void OnResize() = 0;
     virtual void OnUpdate(const GameTimer& gameTimer) = 0;
     virtual void OnRender() = 0;
+
+    VkResult CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule);
+    VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
+    int32_t FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const;
 
     VkDevice m_vulkanDevice = VK_NULL_HANDLE;
     VkFormat m_vulkanSwapchainPixelFormat = VK_FORMAT_UNDEFINED;
@@ -36,8 +52,8 @@ protected:
     VkCommandBuffer m_vulkanPrimaryCommandBuffer = VK_NULL_HANDLE;
     uint32_t m_vulkanSwapchainWidth = 0;
     uint32_t m_vulkanSwapchainHeight = 0;
-    std::vector<VkFramebuffer> m_vulkanSwapchainFrameBuffers;
     uint32_t m_currentSwapchainImageIndex = 0;
+    std::vector<VkImageView> m_vulkanSwapchainImageViews;
 
 private:
     bool InitWindow();
@@ -45,9 +61,6 @@ private:
     bool InitVulkanDevice();
     bool InitVulkanSwapChain(const int32_t width, const int32_t height);
     bool InitVulkanGameResources();
-    bool InitFrameBuffers();
-
-    void DestroyFrameBuffers();
 
     void Update();
     void Resize(int32_t width = -1, int32_t height = -1);
@@ -64,11 +77,11 @@ private:
     VkPhysicalDevice m_vulkanPhysicalDevice;
     VkQueue m_vulkanQueue = VK_NULL_HANDLE;
     VkSwapchainKHR m_vulkanSwapchain = VK_NULL_HANDLE;
-    std::vector<VkImageView> m_vulkanSwapchainImageViews;
     VkSemaphore m_vulkanAquireSwapchain = VK_NULL_HANDLE;
     VkSemaphore m_vulkanReleaseSwapchain = VK_NULL_HANDLE;
     VkCommandPool m_vulkanPrimaryCommandPool;
     VkFence m_vulkanSubmitFence = VK_NULL_HANDLE;
+    shaderc_compiler_t m_shaderCompiler = nullptr;
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;

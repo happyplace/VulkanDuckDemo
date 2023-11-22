@@ -68,5 +68,7 @@ target_link_libraries(VulkanDuckDemo ${Vulkan_LIBRARIES})
 set(SHADERC_SKIP_TESTS YES)
 set(SHADERC_SKIP_EXAMPLES YES)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/shaderc)
-include_directories(VulkanDuckDemo ${CMAKE_CURRENT_SOURCE_DIR}/external/shaderc/libshaderc/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/shaderc/libshaderc/include)
 target_link_libraries(VulkanDuckDemo shaderc)
+
+include_directories(VulkanDuckDemo ${CMAKE_CURRENT_SOURCE_DIR}/external/glm)
