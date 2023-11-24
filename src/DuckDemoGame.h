@@ -37,15 +37,15 @@ private:
     virtual void OnUpdate(const GameTimer& gameTimer) override;
     virtual void OnRender() override;
 
-    std::vector<VkFramebuffer> m_vulkanSwapchainFrameBuffers;
+    std::vector<VkFramebuffer> m_vulkanFrameBuffers;
 
     VulkanBuffer m_vulkanFrameBuffer;
     VulkanBuffer m_vulkanObjectBuffer;
 
     VkRenderPass m_vulkanRenderPass;
     VkDescriptorPool m_vulkanDescriptorPool = VK_NULL_HANDLE;
-    std::array<VkDescriptorSetLayout, 2> m_vulkanDescriptorSetLayouts;
-    std::array<VkDescriptorSet, 2> m_vulkanDescriptorSets;
+    VkDescriptorSetLayout m_vulkanDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_vulkanDescriptorSet = VK_NULL_HANDLE;
     VkPipelineLayout m_vulkanPipelineLayout = VK_NULL_HANDLE;
     VkShaderModule m_vertexShader = VK_NULL_HANDLE;
     VkShaderModule m_fragmentShader = VK_NULL_HANDLE;
