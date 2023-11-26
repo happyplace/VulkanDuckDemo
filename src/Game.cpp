@@ -196,7 +196,10 @@ int Game::Run(int argc, char** argv)
         m_gameTimer.Tick();
 
         Update();
-        BeginRender();
+        if (!BeginRender())
+        {
+            continue;
+        }
         OnRender();
         EndRender();
     }
@@ -750,23 +753,13 @@ bool Game::InitVulkanGameResources()
 }
 
 bool Game::BeginRender()
-{
+{   
     VkResult acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchain, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
-    if (acquireImageResult == VK_SUBOPTIMAL_KHR || acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR)
+    if (acquireImageResult != VK_SUCCESS && acquireImageResult != VK_SUBOPTIMAL_KHR && acquireImageResult != VK_ERROR_OUT_OF_DATE_KHR)
     {
-        Resize();
-        acquireImageResult = vkAcquireNextImageKHR(m_vulkanDevice, m_vulkanSwapchain, UINT64_MAX, m_vulkanAquireSwapchain, VK_NULL_HANDLE, &m_currentSwapchainImageIndex);
-    }
-    else
-    {
+        // if it's VK_SUBOPTIMAL_KHR or VK_ERROR_OUT_OF_DATE_KHR we'll rebuild the swap chain after the vkQueuePresentKHR
+        // else every other error result besides VK_SUCCESS is considered an unhandled error
         DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
-    }
-
-    if (acquireImageResult != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(acquireImageResult);
-        vkQueueWaitIdle(m_vulkanQueue);
-        return false;
     }
 
     DUCK_DEMO_VULKAN_ASSERT(vkResetCommandPool(m_vulkanDevice, m_vulkanPrimaryCommandPool, 0));
