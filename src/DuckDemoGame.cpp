@@ -368,18 +368,18 @@ bool DuckDemoGame::OnInit()
     pipelineColorBlendStateCreateInfo.blendConstants[2] = 0.0f;
     pipelineColorBlendStateCreateInfo.blendConstants[3] = 0.0f;
 
-    //std::array<VkDynamicState,2> dynamicState;
-    //dynamicState[0] = VK_DYNAMIC_STATE_VIEWPORT;
-    //dynamicState[1] = VK_DYNAMIC_STATE_SCISSOR;
+    std::array<VkDynamicState,2> dynamicState;
+    dynamicState[0] = VK_DYNAMIC_STATE_VIEWPORT;
+    dynamicState[1] = VK_DYNAMIC_STATE_SCISSOR;
 
     VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo;
     pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     pipelineDynamicStateCreateInfo.pNext = nullptr;
     pipelineDynamicStateCreateInfo.flags = 0;
-    // pipelineDynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicState.size());
-    // pipelineDynamicStateCreateInfo.pDynamicStates = dynamicState.data();
-    pipelineDynamicStateCreateInfo.dynamicStateCount = 0;
-    pipelineDynamicStateCreateInfo.pDynamicStates = nullptr;
+    pipelineDynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicState.size());
+    pipelineDynamicStateCreateInfo.pDynamicStates = dynamicState.data();
+    //pipelineDynamicStateCreateInfo.dynamicStateCount = 0;
+    //pipelineDynamicStateCreateInfo.pDynamicStates = nullptr;
 
     VkStencilOpState stencilOpStateFront;
     stencilOpStateFront.failOp = VK_STENCIL_OP_KEEP;
@@ -534,21 +534,21 @@ void DuckDemoGame::OnRender()
 
     vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, 1, &m_vulkanDescriptorSet, 0, nullptr);
 
-    // VkViewport viewport;
-    // viewport.x = 0;
-    // viewport.y = 0;
-    // viewport.width = static_cast<float>(m_vulkanSwapchainWidth);
-    // viewport.height = static_cast<float>(m_vulkanSwapchainHeight);
-    // viewport.minDepth = 0.0f;
-    // viewport.maxDepth = 1.0f;
-    // vkCmdSetViewport(m_vulkanPrimaryCommandBuffer, 0, 1, &viewport);
+    VkViewport viewport;
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = static_cast<float>(m_vulkanSwapchainWidth);
+    viewport.height = static_cast<float>(m_vulkanSwapchainHeight);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(m_vulkanPrimaryCommandBuffer, 0, 1, &viewport);
 
-    // VkRect2D scissor;
-    // scissor.offset.x = 0;
-    // scissor.offset.y = 0;
-    // scissor.extent.width = m_vulkanSwapchainWidth;
-    // scissor.extent.height = m_vulkanSwapchainHeight;
-    // vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
+    VkRect2D scissor;
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = m_vulkanSwapchainWidth;
+    scissor.extent.height = m_vulkanSwapchainHeight;
+    vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
 
     const VkDeviceSize vertexOffset = 0;
     vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanVertexBuffer.m_buffer, &vertexOffset);
