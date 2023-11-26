@@ -1,5 +1,14 @@
 #include "DuckDemoGame.h"
 
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtx/quaternion.hpp"
+#include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/transform.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtx/euler_angles.hpp"
+
+#include "VertexData.h"
+
 DuckDemoGame::DuckDemoGame()
 {
     DUCK_DEMO_ASSERT(!ms_instance);
@@ -10,6 +19,8 @@ DuckDemoGame::~DuckDemoGame()
 {
     m_vulkanFrameBuffer.Reset();
     m_vulkanObjectBuffer.Reset();
+    m_vulkanIndexBuffer.Reset();
+    m_vulkanVertexBuffer.Reset();
 
     if (m_vulkanPipeline)
     {
@@ -313,7 +324,8 @@ bool DuckDemoGame::OnInit()
     pipelineRasterizationStateCreateInfo.flags = 0;
     pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-    pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+    //pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+    pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_LINE;
     pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
     pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
@@ -356,16 +368,16 @@ bool DuckDemoGame::OnInit()
     pipelineColorBlendStateCreateInfo.blendConstants[2] = 0.0f;
     pipelineColorBlendStateCreateInfo.blendConstants[3] = 0.0f;
 
-    // std::array<VkDynamicState,2> dynamicState;
-    // dynamicState[0] = VK_DYNAMIC_STATE_VIEWPORT;
-    // dynamicState[1] = VK_DYNAMIC_STATE_SCISSOR;
+    //std::array<VkDynamicState,2> dynamicState;
+    //dynamicState[0] = VK_DYNAMIC_STATE_VIEWPORT;
+    //dynamicState[1] = VK_DYNAMIC_STATE_SCISSOR;
 
     VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo;
     pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     pipelineDynamicStateCreateInfo.pNext = nullptr;
     pipelineDynamicStateCreateInfo.flags = 0;
-    //pipelineDynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicState.size());
-    //pipelineDynamicStateCreateInfo.pDynamicStates = dynamicState.data();
+    // pipelineDynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicState.size());
+    // pipelineDynamicStateCreateInfo.pDynamicStates = dynamicState.data();
     pipelineDynamicStateCreateInfo.dynamicStateCount = 0;
     pipelineDynamicStateCreateInfo.pDynamicStates = nullptr;
 
@@ -428,6 +440,31 @@ bool DuckDemoGame::OnInit()
         DUCK_DEMO_VULKAN_ASSERT(result);
         return false;
     }
+
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(s_vertexData)), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanVertexBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(s_indexData)), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanIndexBuffer));
+
+    FillVulkanBuffer(m_vulkanVertexBuffer, s_vertexData, sizeof(s_vertexData));
+    FillVulkanBuffer(m_vulkanIndexBuffer, s_indexData, sizeof(s_indexData));
+
+    ObjectBuf objectBuf;
+    objectBuf.uWorld = glm::translate(glm::vec3(0.0f, 0.0f, 0.0f)) * glm::toMat4(glm::quat(glm::vec3(0.0f, 45.0f, 0.0f))) * glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+    objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
+    FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf));
+
+    const glm::vec3 cameraPosition(0.0f, 0.0f, 5.0f);
+    const glm::mat4x4 view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+    const glm::mat4x4 proj = glm::perspectiveFov(
+        glm::radians(90.0f), 
+        static_cast<float>(m_vulkanSwapchainWidth), 
+        static_cast<float>(m_vulkanSwapchainHeight), 
+        1.0f, 
+        1000.0f);
+
+    FrameBuf frameBuf;
+    frameBuf.uViewProj = glm::transpose(proj * view);
+    FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
 
     return true;
 }
@@ -493,21 +530,32 @@ void DuckDemoGame::OnRender()
     renderPassBeginInfo.pClearValues = &m_vulkanClearValue;
     vkCmdBeginRenderPass(m_vulkanPrimaryCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    VkViewport viewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<float>(m_vulkanSwapchainWidth);
-    viewport.height = static_cast<float>(m_vulkanSwapchainHeight);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(m_vulkanPrimaryCommandBuffer, 0, 1, &viewport);
+    vkCmdBindPipeline(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline);
 
-    VkRect2D scissor;
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent.width = m_vulkanSwapchainWidth;
-    scissor.extent.height = m_vulkanSwapchainHeight;
-    vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
+    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, 1, &m_vulkanDescriptorSet, 0, nullptr);
+
+    // VkViewport viewport;
+    // viewport.x = 0;
+    // viewport.y = 0;
+    // viewport.width = static_cast<float>(m_vulkanSwapchainWidth);
+    // viewport.height = static_cast<float>(m_vulkanSwapchainHeight);
+    // viewport.minDepth = 0.0f;
+    // viewport.maxDepth = 1.0f;
+    // vkCmdSetViewport(m_vulkanPrimaryCommandBuffer, 0, 1, &viewport);
+
+    // VkRect2D scissor;
+    // scissor.offset.x = 0;
+    // scissor.offset.y = 0;
+    // scissor.extent.width = m_vulkanSwapchainWidth;
+    // scissor.extent.height = m_vulkanSwapchainHeight;
+    // vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
+
+    const VkDeviceSize vertexOffset = 0;
+    vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanVertexBuffer.m_buffer, &vertexOffset);
+    vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+    const uint32_t indexCount = sizeof(s_indexData) / sizeof(uint16_t);
+    vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, indexCount, 1, 0, 0, 0);
 
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
 }

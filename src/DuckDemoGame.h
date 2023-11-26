@@ -6,6 +6,7 @@
 #include "DuckDemoUtils.h"
 
 #include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp>
 
 struct DUCK_DEMO_ALIGN(16) FrameBuf
 {
@@ -41,6 +42,9 @@ private:
 
     VulkanBuffer m_vulkanFrameBuffer;
     VulkanBuffer m_vulkanObjectBuffer;
+
+    VulkanBuffer m_vulkanIndexBuffer;
+    VulkanBuffer m_vulkanVertexBuffer;
 
     VkRenderPass m_vulkanRenderPass;
     VkDescriptorPool m_vulkanDescriptorPool = VK_NULL_HANDLE;

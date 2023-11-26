@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <cinttypes>
 
 #include <SDL.h>
 #include <vulkan/vulkan.h>
@@ -44,6 +45,7 @@ protected:
 
     VkResult CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule);
     VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
+    void FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize);
     int32_t FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const;
 
     VkDevice m_vulkanDevice = VK_NULL_HANDLE;

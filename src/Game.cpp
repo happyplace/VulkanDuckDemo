@@ -474,6 +474,63 @@ bool Game::InitVulkanDevice()
     deviceQueueCreateInfo.pQueuePriorities = &queue_priority;
     deviceQueueCreateInfo.queueFamilyIndex = m_vulkanGraphicsQueueIndex;
 
+    VkPhysicalDeviceFeatures physicalDeviceFeatures;
+    physicalDeviceFeatures.robustBufferAccess = VK_FALSE;
+    physicalDeviceFeatures.fullDrawIndexUint32 = VK_FALSE;
+    physicalDeviceFeatures.imageCubeArray = VK_FALSE;
+    physicalDeviceFeatures.independentBlend = VK_FALSE;
+    physicalDeviceFeatures.geometryShader = VK_FALSE;
+    physicalDeviceFeatures.tessellationShader = VK_FALSE;
+    physicalDeviceFeatures.sampleRateShading = VK_FALSE;
+    physicalDeviceFeatures.dualSrcBlend = VK_FALSE;
+    physicalDeviceFeatures.logicOp = VK_FALSE;
+    physicalDeviceFeatures.multiDrawIndirect = VK_FALSE;
+    physicalDeviceFeatures.drawIndirectFirstInstance = VK_FALSE;
+    physicalDeviceFeatures.depthClamp = VK_FALSE;
+    physicalDeviceFeatures.depthBiasClamp = VK_FALSE;
+    physicalDeviceFeatures.fillModeNonSolid = VK_TRUE;
+    physicalDeviceFeatures.depthBounds = VK_FALSE;
+    physicalDeviceFeatures.wideLines = VK_FALSE;
+    physicalDeviceFeatures.largePoints = VK_FALSE;
+    physicalDeviceFeatures.alphaToOne = VK_FALSE;
+    physicalDeviceFeatures.multiViewport = VK_FALSE;
+    physicalDeviceFeatures.samplerAnisotropy = VK_FALSE;
+    physicalDeviceFeatures.textureCompressionETC2 = VK_FALSE;
+    physicalDeviceFeatures.textureCompressionASTC_LDR = VK_FALSE;
+    physicalDeviceFeatures.textureCompressionBC = VK_FALSE;
+    physicalDeviceFeatures.occlusionQueryPrecise = VK_FALSE;
+    physicalDeviceFeatures.pipelineStatisticsQuery = VK_FALSE;
+    physicalDeviceFeatures.vertexPipelineStoresAndAtomics = VK_FALSE;
+    physicalDeviceFeatures.fragmentStoresAndAtomics = VK_FALSE;
+    physicalDeviceFeatures.shaderTessellationAndGeometryPointSize = VK_FALSE;
+    physicalDeviceFeatures.shaderImageGatherExtended = VK_FALSE;
+    physicalDeviceFeatures.shaderStorageImageExtendedFormats = VK_FALSE;
+    physicalDeviceFeatures.shaderStorageImageMultisample = VK_FALSE;
+    physicalDeviceFeatures.shaderStorageImageReadWithoutFormat = VK_FALSE;
+    physicalDeviceFeatures.shaderStorageImageWriteWithoutFormat = VK_FALSE;
+    physicalDeviceFeatures.shaderUniformBufferArrayDynamicIndexing = VK_FALSE;
+    physicalDeviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_FALSE;
+    physicalDeviceFeatures.shaderStorageBufferArrayDynamicIndexing = VK_FALSE;
+    physicalDeviceFeatures.shaderStorageImageArrayDynamicIndexing = VK_FALSE;
+    physicalDeviceFeatures.shaderClipDistance = VK_FALSE;
+    physicalDeviceFeatures.shaderCullDistance = VK_FALSE;
+    physicalDeviceFeatures.shaderFloat64 = VK_FALSE;
+    physicalDeviceFeatures.shaderInt64 = VK_FALSE;
+    physicalDeviceFeatures.shaderInt16 = VK_FALSE;
+    physicalDeviceFeatures.shaderResourceResidency = VK_FALSE;
+    physicalDeviceFeatures.shaderResourceMinLod = VK_FALSE;
+    physicalDeviceFeatures.sparseBinding = VK_FALSE;
+    physicalDeviceFeatures.sparseResidencyBuffer = VK_FALSE;
+    physicalDeviceFeatures.sparseResidencyImage2D = VK_FALSE;
+    physicalDeviceFeatures.sparseResidencyImage3D = VK_FALSE;
+    physicalDeviceFeatures.sparseResidency2Samples= VK_FALSE;
+    physicalDeviceFeatures.sparseResidency4Samples = VK_FALSE;
+    physicalDeviceFeatures.sparseResidency8Samples = VK_FALSE;
+    physicalDeviceFeatures.sparseResidency16Samples = VK_FALSE;
+    physicalDeviceFeatures.sparseResidencyAliased =VK_FALSE;
+    physicalDeviceFeatures.variableMultisampleRate = VK_FALSE;
+    physicalDeviceFeatures.inheritedQueries = VK_FALSE;
+
     VkDeviceCreateInfo deviceCreateInfo;
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceCreateInfo.pNext = nullptr;
@@ -484,7 +541,7 @@ bool Game::InitVulkanDevice()
     deviceCreateInfo.ppEnabledLayerNames = nullptr;
     deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensionNames.size());
     deviceCreateInfo.ppEnabledExtensionNames = requiredExtensionNames.data();
-    deviceCreateInfo.pEnabledFeatures = nullptr;
+    deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 
     DUCK_DEMO_VULKAN_ASSERT(vkCreateDevice(m_vulkanPhysicalDevice, &deviceCreateInfo, s_allocator, &m_vulkanDevice));
     vkGetDeviceQueue(m_vulkanDevice, m_vulkanGraphicsQueueIndex, 0, &m_vulkanQueue);
@@ -896,4 +953,17 @@ VkResult Game::CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferU
     OutVulkanBuffer.m_deviceSize = deviceSize;
 
     return result;
+}
+
+void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize)
+{
+    //vkCmdUpdateBuffer( CommandBuffer, myBuffer.buffer, 0, myBuffer.size, data );
+    //command buffer version
+
+    DUCK_DEMO_ASSERT(dataSize == vulkanBuffer.m_deviceSize); // this function expects the buffer and data size to match
+
+    void* gpuMemory = nullptr;
+    vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, 0, VK_WHOLE_SIZE, 0, &gpuMemory);
+    memcpy(gpuMemory, data, std::min(dataSize, vulkanBuffer.m_deviceSize));
+    vkUnmapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory);
 }
