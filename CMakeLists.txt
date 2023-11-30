@@ -12,17 +12,6 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Only 64-bit builds supported.")
 endif()
 
-if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall")
-elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall -Wextra")
-elseif (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
-    # /GL and /EHs are required for boost.context
-    set(MSVC_COMMON_FLAGS_PS "/nologo /W4 /MP /GL /EHs")
-    string(REPLACE ";" " " MSVC_COMMON_FLAGS_PS ${MSVC_COMMON_FLAGS_PS})
-    set(CMAKE_CXX_FLAGS ${MSVC_COMMON_FLAGS_PS} CACHE STRING "C++ Common Flags" FORCE)
-endif()
-
 add_definitions(-DNOMINMAX)
 add_definitions(-DDUCK_DEMO_VULKAN_DEBUG)
 #add_definitions(-DDUCK_DEMO_VULKAN_PORTABILITY)
@@ -46,6 +35,14 @@ endif()
 
 target_compile_features(VulkanDuckDemo PRIVATE cxx_std_14)
 #set_property(TARGET VulkanDuckDemo PROPERTY COMPILE_WARNING_AS_ERROR ON)
+
+if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
+    target_compile_options(VulkanDuckDemo PRIVATE -Wall)
+elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
+    target_compile_options(VulkanDuckDemo PRIVATE -Wall -Wextra)
+elseif (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
+    target_compile_options(VulkanDuckDemo PRIVATE /nologo /W4 /MP /GL /EHs)
+endif()
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
     # use the SDL 2 included in the project for windows builds
