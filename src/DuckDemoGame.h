@@ -8,6 +8,8 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
+#include "meshloader/Mesh.h"
+
 struct DUCK_DEMO_ALIGN(16) FrameBuf
 {
     glm::mat4 uViewProj;
@@ -16,11 +18,6 @@ struct DUCK_DEMO_ALIGN(16) FrameBuf
 struct DUCK_DEMO_ALIGN(16) ObjectBuf
 {
     glm::mat4 uWorld;
-};
-
-struct DUCK_DEMO_ALIGN(16) Vertex
-{
-    glm::vec3 aPosition;
 };
 
 class DuckDemoGame : public Game
@@ -54,4 +51,6 @@ private:
     VkShaderModule m_vertexShader = VK_NULL_HANDLE;
     VkShaderModule m_fragmentShader = VK_NULL_HANDLE;
     VkPipeline m_vulkanPipeline = VK_NULL_HANDLE;
+
+    MeshLoader::Mesh m_mesh;
 };

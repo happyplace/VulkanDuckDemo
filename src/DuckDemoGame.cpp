@@ -7,7 +7,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/euler_angles.hpp"
 
-#include "VertexData.h"
+#include "meshloader/MeshLoader.h"
 
 DuckDemoGame::DuckDemoGame()
 {
@@ -266,11 +266,11 @@ bool DuckDemoGame::OnInit()
     vertexInputAttributeDescription.location = 0;
     vertexInputAttributeDescription.binding = 0;
     vertexInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexInputAttributeDescription.offset = offsetof(Vertex, aPosition);
+    vertexInputAttributeDescription.offset = offsetof(MeshLoader::Vertex, position);
 
     VkVertexInputBindingDescription vertexInputBindingDescription;
     vertexInputBindingDescription.binding = 0;
-    vertexInputBindingDescription.stride = sizeof(Vertex);
+    vertexInputBindingDescription.stride = sizeof(MeshLoader::Vertex);
     vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo;
@@ -441,11 +441,17 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(s_vertexData)), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanVertexBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(s_indexData)), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanIndexBuffer));
+    if (!MeshLoader::Loader::LoadPrimitive(MeshLoader::PrimitiveType::Cube, m_mesh))
+    {
+        DUCK_DEMO_ASSERT(false);
+        return false;
+    }
 
-    FillVulkanBuffer(m_vulkanVertexBuffer, s_vertexData, sizeof(s_vertexData));
-    FillVulkanBuffer(m_vulkanIndexBuffer, s_indexData, sizeof(s_indexData));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_mesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanVertexBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * m_mesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanIndexBuffer));
+
+    FillVulkanBuffer(m_vulkanVertexBuffer, m_mesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_mesh.vertexCount);
+    FillVulkanBuffer(m_vulkanIndexBuffer, m_mesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_mesh.indexCount);
 
     ObjectBuf objectBuf;
     objectBuf.uWorld = glm::translate(glm::vec3(0.0f, 0.0f, 0.0f)) * glm::toMat4(glm::quat(glm::vec3(0.0f, 45.0f, 0.0f))) * glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
@@ -552,10 +558,9 @@ void DuckDemoGame::OnRender()
 
     const VkDeviceSize vertexOffset = 0;
     vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanVertexBuffer.m_buffer, &vertexOffset);
-    vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-    const uint32_t indexCount = sizeof(s_indexData) / sizeof(uint16_t);
-    vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, indexCount, 1, 0, 0, 0);
+    vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, m_mesh.indexCount, 1, 0, 0, 0);
 
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
 }
