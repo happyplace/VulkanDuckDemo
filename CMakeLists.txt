@@ -69,3 +69,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/shaderc/libshaderc/incl
 target_link_libraries(VulkanDuckDemo shaderc)
 
 include_directories(VulkanDuckDemo ${CMAKE_CURRENT_SOURCE_DIR}/external/glm)
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/MeshLoader)
+include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/external/MeshLoader/include)
+target_link_libraries(VulkanDuckDemo MeshLoader)
