@@ -826,7 +826,7 @@ VkResult Game::CompileShaderFromDisk(const std::string& path, const shaderc_shad
 
     shaderc_compilation_result_t result = shaderc_compile_into_spv(
         m_shaderCompiler,
-        *shaderFile->buffer.get(),
+        shaderFile->buffer.get(),
         shaderFile->bufferSize, shaderKind,
         "Shader.file", "main", nullptr);
 

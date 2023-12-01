@@ -17,9 +17,9 @@ std::unique_ptr<DuckDemoFile> DuckDemoUtils::LoadFileFromDisk(const std::string&
     {
         std::unique_ptr<DuckDemoFile> loadedFile = std::make_unique<DuckDemoFile>();
         loadedFile->bufferSize = file.tellg();
-        loadedFile->buffer = std::make_unique<char*>(new char[loadedFile->bufferSize]);
+        loadedFile->buffer.reset(new char[loadedFile->bufferSize]);
         file.seekg(0, std::ios::beg);
-        file.read(*loadedFile->buffer.get(), loadedFile->bufferSize);
+        file.read(loadedFile->buffer.get(), loadedFile->bufferSize);
         file.close();
         return loadedFile;
     }

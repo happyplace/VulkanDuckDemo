@@ -35,7 +35,7 @@ static VkAllocationCallbacks* s_allocator = nullptr;
 
 struct DuckDemoFile
 {
-    std::unique_ptr<char*> buffer;
+    std::unique_ptr<char[]> buffer;
     std::size_t bufferSize = 0;
 };
 
