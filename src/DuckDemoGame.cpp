@@ -441,6 +441,19 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
+    // std::unique_ptr<DuckDemoFile> modelFile = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/kachujin_g_rosales.fbx");
+    // if (modelFile == nullptr)
+    // {
+    //     DUCK_DEMO_ASSERT(false);
+    //     return false;
+    // }
+
+    // if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, m_mesh))
+    // {
+    //     DUCK_DEMO_ASSERT(false);
+    //     return false;
+    // }
+
     if (!MeshLoader::Loader::LoadPrimitive(MeshLoader::PrimitiveType::Cube, m_mesh))
     {
         DUCK_DEMO_ASSERT(false);
@@ -454,11 +467,12 @@ bool DuckDemoGame::OnInit()
     FillVulkanBuffer(m_vulkanIndexBuffer, m_mesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_mesh.indexCount);
 
     ObjectBuf objectBuf;
-    objectBuf.uWorld = glm::translate(glm::vec3(0.0f, 0.0f, 0.0f)) * glm::toMat4(glm::quat(glm::vec3(0.0f, 45.0f, 0.0f))) * glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+    //objectBuf.uWorld = glm::translate(glm::vec3(0.0f, 0.0f, 0.0f)) * glm::toMat4(glm::quat(glm::vec3(90.0f, 0.0f, 0.0f))) * glm::scale(glm::vec3(0.02f));
+    objectBuf.uWorld = glm::translate(glm::vec3(0.0f)) * glm::toMat4(glm::quat(glm::vec3(0.0f, 45.0f, 0.0f))) * glm::scale(glm::vec3(1.0f));
     objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
     FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf));
 
-    const glm::vec3 cameraPosition(0.0f, 0.0f, 5.0f);
+    const glm::vec3 cameraPosition(0.0f, 0.0f, 6.0f);
     const glm::mat4x4 view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
     const glm::mat4x4 proj = glm::perspectiveFov(
