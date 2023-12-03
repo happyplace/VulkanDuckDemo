@@ -2,18 +2,13 @@
 
 #include <cstring>
 
+#include "MeshUtils.h"
+
+#ifdef ML_ENABLE_ASSIMP
+#include "AssimpLoader.h"
+#endif // ML_ENABLE_ASSIMP
+
 using namespace MeshLoader;
-
-void PrepareMesh(Mesh& outMesh, int vertexCount, int indexCount)
-{
-    outMesh.indexCount = indexCount;
-    outMesh.vertexCount = vertexCount;
-
-    std::size_t bufferSize = 0;
-    bufferSize += outMesh.indexCount * sizeof(IndexType);
-    bufferSize += outMesh.vertexCount * sizeof(Vertex);
-    outMesh.buffer.reset(new char[bufferSize]);
-}
 
 bool CubePrimitive(Mesh& outMesh)
 {
@@ -86,4 +81,13 @@ bool Loader::LoadPrimitive(PrimitiveType primitiveType, Mesh& outMesh)
         default:
             return false;
     }
+}
+
+bool Loader::LoadModel(const void* buffer, const size_t bufferSize, Mesh& outMesh)
+{
+#ifdef ML_ENABLE_ASSIMP
+    return AssimpLoader::Load(buffer, bufferSize, outMesh);
+#else
+    return false;
+#endif // ML_ENABLE_ASSIMP
 }

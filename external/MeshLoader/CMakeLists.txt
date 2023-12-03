@@ -7,7 +7,7 @@ cmake_policy(SET CMP0025 NEW)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 option(MESH_LOADER_SHARED_LIBRARY "should be built as a shared library" ON)
-option(MESH_LOADER_ENABLED_ASSIMP "should be built as a shared library" ON)
+option(MESH_LOADER_ENABLED_ASSIMP "should be built with assimp support" ON)
 
 project(MeshLoader)
 
@@ -29,6 +29,12 @@ include_directories(include)
 set(meshloader-src
     "src/MeshLoader.cpp"
 )
+
+if (${MESH_LOADER_ENABLED_ASSIMP})
+    set(meshloader-src ${meshloader-src}
+        "src/AssimpLoader.cpp"
+    )
+endif()
 
 if (${MESH_LOADER_SHARED_LIBRARY})
     add_library(MeshLoader SHARED ${meshloader-src})
