@@ -454,7 +454,7 @@ bool DuckDemoGame::OnInit()
     //     return false;
     // }
 
-    if (!MeshLoader::Loader::LoadPrimitive(MeshLoader::PrimitiveType::Cube, m_mesh))
+    if (!MeshLoader::Loader::LoadCubePrimitive(m_mesh, 2.0f, 2.0f, 2.0f))
     {
         DUCK_DEMO_ASSERT(false);
         return false;
@@ -467,7 +467,7 @@ bool DuckDemoGame::OnInit()
     FillVulkanBuffer(m_vulkanIndexBuffer, m_mesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_mesh.indexCount);
 
     ObjectBuf objectBuf;
-    //objectBuf.uWorld = glm::translate(glm::vec3(0.0f, 0.0f, 0.0f)) * glm::toMat4(glm::quat(glm::vec3(90.0f, 0.0f, 0.0f))) * glm::scale(glm::vec3(0.02f));
+    //objectBuf.uWorld = glm::translate(glm::vec3(0.0f)) * glm::toMat4(glm::quat(glm::vec3(90.0f, 0.0f, 0.0f))) * glm::scale(glm::vec3(0.02f));
     objectBuf.uWorld = glm::translate(glm::vec3(0.0f)) * glm::toMat4(glm::quat(glm::vec3(0.0f, 45.0f, 0.0f))) * glm::scale(glm::vec3(1.0f));
     objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
     FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf));

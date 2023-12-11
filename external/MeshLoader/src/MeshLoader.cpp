@@ -10,50 +10,174 @@
 
 using namespace MeshLoader;
 
-bool CubePrimitive(Mesh& outMesh)
+bool Loader::LoadCubePrimitive(Mesh& outMesh, const float width /*= 1.0f*/, const float height /*= 1.0f*/, const float depth /*= 1.0f*/)
 {
-    constexpr Vertex cubeVertexData[] =
+    const float halfWidth = width * 0.5f;
+    const float halfHeight = height * 0.5f;
+    const float halfDepth = depth * 0.5f;
+
+    const Vertex cubeVertexData[] =
     {
         {
-            { -1.0f, -1.0f, -1.0f },
+            { -halfWidth, -halfHeight, -halfDepth }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 1.0f }
         },
         {
-            { 1.0f, -1.0f, -1.0f }
+            { -halfWidth, +halfHeight, -halfDepth }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f }
         },
         {
-            { -1.0f, 1.0f, -1.0f }
+            { +halfWidth, +halfHeight, -halfDepth }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 0.0f }
         },
         {
-            { 1.0f, 1.0f, -1.0f }
+            { +halfWidth, -halfHeight, -halfDepth },
+            { 0.0f, 0.0f, -1.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 1.0f }
         },
         {
-            { -1.0f, -1.0f, 1.0f }
+            { -halfWidth, -halfHeight, +halfDepth },
+            { 0.0f, 0.0f, 1.0f },
+            { -1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 1.0f }
         },
         {
-            { 1.0f, -1.0f, 1.0f }
+            { +halfWidth, -halfHeight, +halfDepth }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 1.0f }
         },
         {
-            { -1.0f, 1.0f, 1.0f }
+            { +halfWidth, +halfHeight, +halfDepth }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f }
         },
         {
-            { 1.0f, 1.0f, 1.0f }
+            { -halfWidth, +halfHeight, +halfDepth }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 0.0f }
         },
+        {
+            { -halfWidth, +halfHeight, -halfDepth }, 
+            { 0.0f, 1.0f, 0.0f },
+            { 1.0f, 0.0f, 0.0f },
+            { 0.0f, 1.0f }
+        },
+        {
+            { -halfWidth, +halfHeight, +halfDepth }, 
+            { 0.0f, 1.0f, 0.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f }
+        },
+        {
+            { +halfWidth, +halfHeight, +halfDepth }, 
+            { 0.0f, 1.0f, 0.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 0.0f }
+        },
+        {
+            { +halfWidth, +halfHeight, -halfDepth }, 
+            { 0.0f, 1.0f, 0.0f }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 1.0f }
+        },
+        {
+            { -halfWidth, -halfHeight, -halfDepth },
+            { 0.0f, -1.0f, 0.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 1.0f }
+        },
+        {
+            { +halfWidth, -halfHeight, -halfDepth }, 
+            { 0.0f, -1.0f, 0.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 1.0f }
+        },
+        {
+            { +halfWidth, -halfHeight, +halfDepth }, 
+            { 0.0f, -1.0f, 0.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f }
+        },
+        {
+            { -halfWidth, -halfHeight, +halfDepth }, 
+            { 0.0f, -1.0f, 0.0f }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 1.0f, 0.0f }
+        },
+        {
+            { -halfWidth, -halfHeight, +halfDepth }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 0.0f, 1.0f }
+        },
+        {
+            { -halfWidth, +halfHeight, +halfDepth }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 0.0f, 0.0f }
+        },
+        {
+            { -halfWidth, +halfHeight, -halfDepth }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 1.0f, 0.0f }
+        },
+        {
+            { -halfWidth, -halfHeight, -halfDepth }, 
+            { -1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, -1.0f }, 
+            { 1.0f, 1.0f }
+        },
+        {
+            { +halfWidth, -halfHeight, -halfDepth }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { 0.0f, 1.0f }
+        },
+        {
+            { +halfWidth, +halfHeight, -halfDepth }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { 0.0f, 0.0f }
+        },
+        {
+            { +halfWidth, +halfHeight, +halfDepth }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { 1.0f, 0.0f }
+        },
+        {
+            { +halfWidth, -halfHeight, +halfDepth }, 
+            { 1.0f, 0.0f, 0.0f }, 
+            { 0.0f, 0.0f, 1.0f }, 
+            { 1.0f, 1.0f }
+        }
     };
 
     constexpr IndexType cubeIndexData[] =
     {
+        0, 1, 2,
         0, 2, 3,
-        0, 3, 1,
-        4, 5, 7,
-        4, 7, 6,
-        1, 3, 7,
-        1, 7, 5,
-        0, 4, 6,
-        0, 6, 2,
-        2, 6, 7,
-        2, 7, 3,
-        0, 1, 5,
-        0, 5, 4,
+        4, 5, 6,
+        4, 6, 7,
+        8, 9, 10,
+        8, 10, 11,
+        12, 13, 14,
+        12, 14, 15,
+        16, 17, 18,
+        16, 18, 19,
+        20, 21, 22,
+        20, 22, 23
     };
 
     constexpr std::size_t vertexSize = sizeof(Vertex);
@@ -66,21 +190,15 @@ bool CubePrimitive(Mesh& outMesh)
 
     PrepareMesh(outMesh, cubeVertexDataCount, cubeIndexDataCount);  
 
+    if (outMesh.buffer.get() == nullptr)
+    {
+        return false;
+    }
+
     memcpy(outMesh.GetVertex(), cubeVertexData, cubeVertexDataSize);
     memcpy(outMesh.GetIndex(), cubeIndexData, cubeIndexDataSize);
 
     return true;
-}
-
-bool Loader::LoadPrimitive(PrimitiveType primitiveType, Mesh& outMesh)
-{
-    switch (primitiveType)
-    {
-        case PrimitiveType::Cube:
-            return CubePrimitive(outMesh);
-        default:
-            return false;
-    }
 }
 
 bool Loader::LoadModel(const void* buffer, const size_t bufferSize, Mesh& outMesh)
