@@ -4,6 +4,12 @@
 
 namespace MeshLoader
 {
+    struct Vector2
+    {
+        float x;
+        float y;
+    };
+
     struct Vector3
     {
         float x;
@@ -16,5 +22,8 @@ namespace MeshLoader
     struct Vertex
     {
         Vector3 position;
+        Vector3 normal;
+        Vector3 tangent;
+        Vector2 texture;
     };
 }
