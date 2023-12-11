@@ -441,23 +441,30 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
-    // std::unique_ptr<DuckDemoFile> modelFile = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/kachujin_g_rosales.fbx");
-    // if (modelFile == nullptr)
-    // {
-    //     DUCK_DEMO_ASSERT(false);
-    //     return false;
-    // }
+    constexpr bool useModel = true;
 
-    // if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, m_mesh))
-    // {
-    //     DUCK_DEMO_ASSERT(false);
-    //     return false;
-    // }
-
-    if (!MeshLoader::Loader::LoadCubePrimitive(m_mesh, 2.0f, 2.0f, 2.0f))
+    if (useModel)
     {
-        DUCK_DEMO_ASSERT(false);
-        return false;
+        std::unique_ptr<DuckDemoFile> modelFile = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/kachujin_g_rosales.fbx");
+        if (modelFile == nullptr)
+        {
+            DUCK_DEMO_ASSERT(false);
+            return false;
+        }
+
+        if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, m_mesh))
+        {
+            DUCK_DEMO_ASSERT(false);
+            return false;
+        }
+    }
+    else
+    {
+        if (!MeshLoader::Loader::LoadCubePrimitive(m_mesh, 2.0f, 2.0f, 2.0f))
+        {
+            DUCK_DEMO_ASSERT(false);
+            return false;
+        }
     }
 
     DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_mesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanVertexBuffer));
@@ -466,14 +473,27 @@ bool DuckDemoGame::OnInit()
     FillVulkanBuffer(m_vulkanVertexBuffer, m_mesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_mesh.vertexCount);
     FillVulkanBuffer(m_vulkanIndexBuffer, m_mesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_mesh.indexCount);
 
+    const glm::vec3 objectPosition = glm::vec3(0.0f);
+    const glm::vec3 objectScale = glm::vec3(1.0f);
+    const glm::quat objectRotation = useModel ? 
+        glm::quat(glm::vec3(glm::radians(180.0f), 0.0f, 0.0f)) :
+        glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
+
     ObjectBuf objectBuf;
-    //objectBuf.uWorld = glm::translate(glm::vec3(0.0f)) * glm::toMat4(glm::quat(glm::vec3(90.0f, 0.0f, 0.0f))) * glm::scale(glm::vec3(0.02f));
-    objectBuf.uWorld = glm::translate(glm::vec3(0.0f)) * glm::toMat4(glm::quat(glm::vec3(0.0f, 45.0f, 0.0f))) * glm::scale(glm::vec3(1.0f));
+    objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
     objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
     FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf));
 
-    const glm::vec3 cameraPosition(0.0f, 0.0f, 6.0f);
-    const glm::mat4x4 view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    const glm::mat4 cameraRotation = glm::toMat4(glm::quat(glm::vec3(glm::radians(0.0f), glm::radians(0.0f), 0.0f)));
+    const glm::vec3 cameraPosition = useModel ? 
+        glm::vec3(0.0f, -80.0f, -150.0f) :
+        glm::vec3(0.0f, 0.0f, -6.0f);
+
+    const glm::vec3 cameraForward = cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+
+    const glm::vec3 lookAtUp = cameraRotation * glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+    const glm::vec3 lookAtTarget = cameraPosition + cameraForward;
+    const glm::mat4x4 view = glm::lookAt(cameraPosition, lookAtTarget, lookAtUp);
 
     const glm::mat4x4 proj = glm::perspectiveFov(
         glm::radians(90.0f), 
