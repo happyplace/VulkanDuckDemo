@@ -14,5 +14,4 @@ namespace MeshLoader
         bufferSize += outMesh.vertexCount * sizeof(Vertex);
         outMesh.buffer.reset(new char[bufferSize]);
     }
-
 }
