@@ -837,9 +837,15 @@ VkResult Game::CompileShaderFromDisk(const std::string& path, const shaderc_shad
     }
 
     const shaderc_compilation_status status = shaderc_result_get_compilation_status(result);
-    DUCK_DEMO_ASSERT(status == shaderc_compilation_status_success);
     if (status != shaderc_compilation_status_success)
     {
+        const char* errorMessage = shaderc_result_get_error_message(result);
+        if (errorMessage)
+        {
+            DUCK_DEMO_SHOW_ERROR("Shader Compile Error", errorMessage);
+        }
+        DUCK_DEMO_ASSERT(status == shaderc_compilation_status_success);
+
         shaderc_result_release(result);
         return VK_ERROR_UNKNOWN;
     }
