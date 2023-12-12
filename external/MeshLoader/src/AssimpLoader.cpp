@@ -52,6 +52,36 @@ bool AssimpLoader::Load(const void* buffer, const size_t bufferSize, Mesh& outMe
         outMesh.GetVertex()[i].position.z = assimpMesh->mVertices[i].z;
     }
 
+    if (assimpMesh->mNormals)
+    {
+        for (unsigned i = 0; i < assimpMesh->mNumVertices; ++i)
+        {
+            outMesh.GetVertex()[i].normal.x = assimpMesh->mNormals[i].x;
+            outMesh.GetVertex()[i].normal.y = assimpMesh->mNormals[i].y;
+            outMesh.GetVertex()[i].normal.z = assimpMesh->mNormals[i].z;
+        }
+    }
+
+    if (assimpMesh->mTangents)
+    {
+        for (unsigned i = 0; i < assimpMesh->mNumVertices; ++i)
+        {
+            outMesh.GetVertex()[i].tangent.x = assimpMesh->mTangents[i].x;
+            outMesh.GetVertex()[i].tangent.y = assimpMesh->mTangents[i].y;
+            outMesh.GetVertex()[i].tangent.z = assimpMesh->mTangents[i].z;
+        }
+    }
+
+    if (assimpMesh->HasTextureCoords(0))
+    {
+        for (unsigned i = 0; i < assimpMesh->mNumVertices; ++i)
+        {
+            outMesh.GetVertex()[i].texture.x = assimpMesh->mTextureCoords[0][i].x;
+            outMesh.GetVertex()[i].texture.y = assimpMesh->mTextureCoords[0][i].y;
+            //outMesh.GetVertex()[i].tangent.z = assimpMesh->mTextureCoords[0][i].z;
+        }
+    }
+
     for (unsigned i = 0; i < assimpMesh->mNumFaces; ++i)
     {
         const unsigned baseIndex = i * 3;
