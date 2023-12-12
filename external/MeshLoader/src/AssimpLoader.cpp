@@ -78,7 +78,6 @@ bool AssimpLoader::Load(const void* buffer, const size_t bufferSize, Mesh& outMe
         {
             outMesh.GetVertex()[i].texture.x = assimpMesh->mTextureCoords[0][i].x;
             outMesh.GetVertex()[i].texture.y = assimpMesh->mTextureCoords[0][i].y;
-            //outMesh.GetVertex()[i].tangent.z = assimpMesh->mTextureCoords[0][i].z;
         }
     }
 
