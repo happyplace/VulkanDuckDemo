@@ -144,13 +144,13 @@ bool DuckDemoGame::OnInit()
     descriptorSetLayoutBindings[0].binding = 0;
     descriptorSetLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorSetLayoutBindings[0].descriptorCount = 1;
-    descriptorSetLayoutBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    descriptorSetLayoutBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     descriptorSetLayoutBindings[0].pImmutableSamplers = nullptr;
 
     descriptorSetLayoutBindings[1].binding = 1;
     descriptorSetLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorSetLayoutBindings[1].descriptorCount = 1;
-    descriptorSetLayoutBindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    descriptorSetLayoutBindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     descriptorSetLayoutBindings[1].pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
@@ -262,11 +262,16 @@ bool DuckDemoGame::OnInit()
     pipelineShaderStageCreateInfo[1].pName = "main";
     pipelineShaderStageCreateInfo[1].pSpecializationInfo = nullptr;
 
-    VkVertexInputAttributeDescription vertexInputAttributeDescription;
-    vertexInputAttributeDescription.location = 0;
-    vertexInputAttributeDescription.binding = 0;
-    vertexInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexInputAttributeDescription.offset = offsetof(MeshLoader::Vertex, position);
+    std::array<VkVertexInputAttributeDescription,2> vertexInputAttributeDescriptions;
+    vertexInputAttributeDescriptions[0].location = 0;
+    vertexInputAttributeDescriptions[0].binding = 0;
+    vertexInputAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexInputAttributeDescriptions[0].offset = offsetof(MeshLoader::Vertex, position);
+
+    vertexInputAttributeDescriptions[1].location = 1;
+    vertexInputAttributeDescriptions[1].binding = 0;
+    vertexInputAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexInputAttributeDescriptions[1].offset = offsetof(MeshLoader::Vertex, normal);
 
     VkVertexInputBindingDescription vertexInputBindingDescription;
     vertexInputBindingDescription.binding = 0;
@@ -279,8 +284,8 @@ bool DuckDemoGame::OnInit()
     pipelineVertexInputStateCreateInfo.flags = 0;
     pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
     pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
-    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
-    pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexInputAttributeDescription;
+    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributeDescriptions.size());
+    pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo;
     pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -324,9 +329,10 @@ bool DuckDemoGame::OnInit()
     pipelineRasterizationStateCreateInfo.flags = 0;
     pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-    //pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-    pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_LINE;
+    pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+    //pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_LINE;
     pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
+    //pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
     pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -482,6 +488,9 @@ bool DuckDemoGame::OnInit()
     ObjectBuf objectBuf;
     objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
     objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
+    objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
+    objectBuf.uRoughness = 0.2f;
     FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf));
 
     const glm::mat4 cameraRotation = glm::toMat4(glm::quat(glm::vec3(glm::radians(0.0f), glm::radians(0.0f), 0.0f)));
@@ -504,6 +513,12 @@ bool DuckDemoGame::OnInit()
 
     FrameBuf frameBuf;
     frameBuf.uViewProj = glm::transpose(proj * view);
+    frameBuf.uEyePosW = cameraPosition;
+    
+    frameBuf.uAmbientLight = glm::vec4(0.25f, 0.25f, 0.25f, 1.0f);
+
+    frameBuf.uDirLight.uDirection = glm::vec3(0.57735f, -0.57735f, 0.57735f);
+    frameBuf.uDirLight.uStrength = glm::vec3(0.6f, 0.6f, 0.6f);
     FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
 
     return true;

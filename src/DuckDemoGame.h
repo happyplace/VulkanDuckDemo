@@ -10,14 +10,28 @@
 
 #include "meshloader/Mesh.h"
 
+struct DUCK_DEMO_ALIGN(16) DirectionalLightBuf
+{
+    glm::vec3 uStrength;
+    float padding0;
+    glm::vec3 uDirection;
+};
+
 struct DUCK_DEMO_ALIGN(16) FrameBuf
 {
     glm::mat4 uViewProj;
+    glm::vec3 uEyePosW;
+    float padding0;
+    glm::vec4 uAmbientLight;
+    DirectionalLightBuf uDirLight;
 };
 
 struct DUCK_DEMO_ALIGN(16) ObjectBuf
 {
     glm::mat4 uWorld;
+    glm::vec4 uDiffuseAlbedo;
+    glm::vec3 uFresnelR0;
+    float uRoughness;
 };
 
 class DuckDemoGame : public Game
