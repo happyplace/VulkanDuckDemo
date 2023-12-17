@@ -2,10 +2,20 @@
 #extension GL_ARB_separate_shader_objects  : enable
 #extension GL_ARB_shading_language_420pack : enable
 
+struct DirectionalLightBuf
+{
+    vec3 uStrength;
+    float padding0;
+    vec3 uDirection;
+};
+
 layout(std140, set = 0, binding = 0) uniform FrameBuf
 {
     mat4 uViewProj;
     vec3 uEyePosW;
+    float padding0;
+    vec4 uAmbientLight;
+    DirectionalLightBuf uDirLight;
 } Frame;
 
 layout(std140, set = 0, binding = 1) uniform ObjectBuf
