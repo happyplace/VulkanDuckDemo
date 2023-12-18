@@ -42,9 +42,12 @@ DuckDemoGame::~DuckDemoGame()
         vkDestroyPipelineLayout(m_vulkanDevice, m_vulkanPipelineLayout, s_allocator);
     }
 
-    if (m_vulkanDescriptorSetLayout)
+    for (std::size_t i = 0; i < m_vulkanDescriptorSetLayouts.size(); ++i)
     {
-        vkDestroyDescriptorSetLayout(m_vulkanDevice, m_vulkanDescriptorSetLayout, s_allocator);
+        if (m_vulkanDescriptorSetLayouts[i])
+        {
+            vkDestroyDescriptorSetLayout(m_vulkanDevice, m_vulkanDescriptorSetLayouts[i], s_allocator);
+        }
     }
 
     if (m_vulkanDescriptorPool)
@@ -129,7 +132,7 @@ bool DuckDemoGame::OnInit()
     descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptorPoolCreateInfo.pNext = nullptr;
     descriptorPoolCreateInfo.flags = 0;
-    descriptorPoolCreateInfo.maxSets = static_cast<uint32_t>(descriptorPoolSize.size());;
+    descriptorPoolCreateInfo.maxSets = static_cast<uint32_t>(descriptorPoolSize.size());
     descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSize.size());
     descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSize.data();
 
@@ -140,27 +143,45 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
-    std::array<VkDescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings;
-    descriptorSetLayoutBindings[0].binding = 0;
-    descriptorSetLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptorSetLayoutBindings[0].descriptorCount = 1;
-    descriptorSetLayoutBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    descriptorSetLayoutBindings[0].pImmutableSamplers = nullptr;
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanFrameBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(ObjectBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
 
-    descriptorSetLayoutBindings[1].binding = 1;
-    descriptorSetLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptorSetLayoutBindings[1].descriptorCount = 1;
-    descriptorSetLayoutBindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    descriptorSetLayoutBindings[1].pImmutableSamplers = nullptr;
+    VkDescriptorSetLayoutBinding frameBufDescriptorSetLayoutBinding;
+    frameBufDescriptorSetLayoutBinding.binding = 0;
+    frameBufDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    frameBufDescriptorSetLayoutBinding.descriptorCount = 1;
+    frameBufDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    frameBufDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
-    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutCreateInfo.pNext = nullptr;
-    descriptorSetLayoutCreateInfo.flags = 0;
-    descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
-    descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+    VkDescriptorSetLayoutBinding objectBufDescriptorSetLayoutBinding;
+    objectBufDescriptorSetLayoutBinding.binding = 0;
+    objectBufDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    objectBufDescriptorSetLayoutBinding.descriptorCount = 1;
+    objectBufDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    objectBufDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &descriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayout);
+    VkDescriptorSetLayoutCreateInfo frameBufDescriptorSetLayoutCreateInfo;
+    frameBufDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    frameBufDescriptorSetLayoutCreateInfo.pNext = nullptr;
+    frameBufDescriptorSetLayoutCreateInfo.flags = 0;
+    frameBufDescriptorSetLayoutCreateInfo.bindingCount = 1;
+    frameBufDescriptorSetLayoutCreateInfo.pBindings = &frameBufDescriptorSetLayoutBinding;
+
+    VkDescriptorSetLayoutCreateInfo objectBufDescriptorSetLayoutCreateInfo;
+    objectBufDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    objectBufDescriptorSetLayoutCreateInfo.pNext = nullptr;
+    objectBufDescriptorSetLayoutCreateInfo.flags = 0;
+    objectBufDescriptorSetLayoutCreateInfo.bindingCount = 1;
+    objectBufDescriptorSetLayoutCreateInfo.pBindings = &objectBufDescriptorSetLayoutBinding;
+
+    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &frameBufDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[0]);
+    if (result != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return false;
+    }
+
+    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &objectBufDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[1]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -171,56 +192,54 @@ bool DuckDemoGame::OnInit()
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptorSetAllocateInfo.pNext = nullptr;
     descriptorSetAllocateInfo.descriptorPool = m_vulkanDescriptorPool;
-    descriptorSetAllocateInfo.descriptorSetCount = 1;
-    descriptorSetAllocateInfo.pSetLayouts = &m_vulkanDescriptorSetLayout;
+    descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(m_vulkanDescriptorSetLayouts.size());
+    descriptorSetAllocateInfo.pSetLayouts = m_vulkanDescriptorSetLayouts.data();
 
-    DUCK_DEMO_VULKAN_ASSERT(vkAllocateDescriptorSets(m_vulkanDevice, &descriptorSetAllocateInfo, &m_vulkanDescriptorSet));
+    DUCK_DEMO_VULKAN_ASSERT(vkAllocateDescriptorSets(m_vulkanDevice, &descriptorSetAllocateInfo, m_vulkanDescriptorSets.data()));
 
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanFrameBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(ObjectBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
+    VkDescriptorBufferInfo frameBufDescriptorBufferInfo;
+    frameBufDescriptorBufferInfo.buffer = m_vulkanFrameBuffer.m_buffer;
+    frameBufDescriptorBufferInfo.offset = 0;
+    frameBufDescriptorBufferInfo.range = sizeof(FrameBuf);
 
-    VkDescriptorBufferInfo descriptorBufferInfo[2];
-    
-    descriptorBufferInfo[0].buffer = m_vulkanFrameBuffer.m_buffer;
-    descriptorBufferInfo[0].offset = 0;
-    descriptorBufferInfo[0].range = sizeof(FrameBuf);
+    VkDescriptorBufferInfo objectBufDescriptorBufferInfo;
+    objectBufDescriptorBufferInfo.buffer = m_vulkanObjectBuffer.m_buffer;
+    objectBufDescriptorBufferInfo.offset = 0;
+    objectBufDescriptorBufferInfo.range = sizeof(ObjectBuf);
 
-    descriptorBufferInfo[1].buffer = m_vulkanObjectBuffer.m_buffer;
-    descriptorBufferInfo[1].offset = 0;
-    descriptorBufferInfo[1].range = sizeof(ObjectBuf);
+    VkWriteDescriptorSet frameBufWriteDescriptorSet;
+    frameBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    frameBufWriteDescriptorSet.pNext = nullptr;
+    frameBufWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[0];
+    frameBufWriteDescriptorSet.dstBinding = 0;
+    frameBufWriteDescriptorSet.dstArrayElement = 0;
+    frameBufWriteDescriptorSet.descriptorCount = 1;
+    frameBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    frameBufWriteDescriptorSet.pBufferInfo = &frameBufDescriptorBufferInfo;
+    frameBufWriteDescriptorSet.pImageInfo = nullptr;
+    frameBufWriteDescriptorSet.pTexelBufferView = nullptr;
 
-    std::array<VkWriteDescriptorSet, 2> writeDescriptorSet;
+    VkWriteDescriptorSet objectBufWriteDescriptorSet;
+    objectBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    objectBufWriteDescriptorSet.pNext = nullptr;
+    objectBufWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[1];
+    objectBufWriteDescriptorSet.dstBinding = 0;
+    objectBufWriteDescriptorSet.dstArrayElement = 0;
+    objectBufWriteDescriptorSet.descriptorCount = 1;
+    objectBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    objectBufWriteDescriptorSet.pBufferInfo = &objectBufDescriptorBufferInfo;
+    objectBufWriteDescriptorSet.pImageInfo = nullptr;
+    objectBufWriteDescriptorSet.pTexelBufferView = nullptr;
 
-    writeDescriptorSet[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet[0].pNext = nullptr;
-    writeDescriptorSet[0].dstSet = m_vulkanDescriptorSet;
-    writeDescriptorSet[0].dstBinding = 0;
-    writeDescriptorSet[0].dstArrayElement = 0;
-    writeDescriptorSet[0].descriptorCount = 1;
-    writeDescriptorSet[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet[0].pBufferInfo = &descriptorBufferInfo[0];
-    writeDescriptorSet[0].pImageInfo = nullptr;
-    writeDescriptorSet[0].pTexelBufferView = nullptr;
-
-    writeDescriptorSet[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet[1].pNext = nullptr;
-    writeDescriptorSet[1].dstSet = m_vulkanDescriptorSet;
-    writeDescriptorSet[1].dstBinding = 1;
-    writeDescriptorSet[1].dstArrayElement = 0;
-    writeDescriptorSet[1].descriptorCount = 1;
-    writeDescriptorSet[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writeDescriptorSet[1].pBufferInfo = &descriptorBufferInfo[1];
-    writeDescriptorSet[1].pImageInfo = nullptr;
-    writeDescriptorSet[1].pTexelBufferView = nullptr;
-
-    vkUpdateDescriptorSets(m_vulkanDevice, static_cast<uint32_t>(writeDescriptorSet.size()), writeDescriptorSet.data(), 0, nullptr);
+    vkUpdateDescriptorSets(m_vulkanDevice, 1, &frameBufWriteDescriptorSet, 0, nullptr);
+    vkUpdateDescriptorSets(m_vulkanDevice, 1, &objectBufWriteDescriptorSet, 0, nullptr);
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCreateInfo.pNext = nullptr;
     pipelineLayoutCreateInfo.flags = 0;
-    pipelineLayoutCreateInfo.setLayoutCount = 1;
-    pipelineLayoutCreateInfo.pSetLayouts = &m_vulkanDescriptorSetLayout;
+    pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(m_vulkanDescriptorSetLayouts.size());
+    pipelineLayoutCreateInfo.pSetLayouts = m_vulkanDescriptorSetLayouts.data();
     pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
     pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
@@ -587,7 +606,7 @@ void DuckDemoGame::OnRender()
 
     vkCmdBindPipeline(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline);
 
-    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, 1, &m_vulkanDescriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, static_cast<uint32_t>(m_vulkanDescriptorSets.size()), m_vulkanDescriptorSets.data(), 0, nullptr);
 
     VkViewport viewport;
     viewport.x = 0;

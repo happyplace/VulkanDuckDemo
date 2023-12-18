@@ -18,7 +18,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     DirectionalLightBuf uDirLight;
 } Frame;
 
-layout(std140, set = 0, binding = 1) uniform ObjectBuf
+layout(std140, set = 1, binding = 0) uniform ObjectBuf
 {
     mat4 uWorld;
     vec4 uDiffuseAlbedo;
