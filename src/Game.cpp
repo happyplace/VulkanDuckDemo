@@ -954,15 +954,15 @@ VkResult Game::CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferU
     return result;
 }
 
-void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize)
+void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize, VkDeviceSize offset /*= 0*/)
 {
     //vkCmdUpdateBuffer( CommandBuffer, myBuffer.buffer, 0, myBuffer.size, data );
     //command buffer version
 
-    DUCK_DEMO_ASSERT(dataSize == vulkanBuffer.m_deviceSize); // this function expects the buffer and data size to match
+    DUCK_DEMO_ASSERT(dataSize <= vulkanBuffer.m_deviceSize); // copying more data into the buffer than it's total size
 
     void* gpuMemory = nullptr;
-    vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, 0, VK_WHOLE_SIZE, 0, &gpuMemory);
+    vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, offset, static_cast<VkDeviceSize>(dataSize), 0, &gpuMemory);
     memcpy(gpuMemory, data, std::min(dataSize, vulkanBuffer.m_deviceSize));
     vkUnmapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory);
 }

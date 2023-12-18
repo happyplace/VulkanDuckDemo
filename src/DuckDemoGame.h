@@ -54,8 +54,11 @@ private:
     VulkanBuffer m_vulkanFrameBuffer;
     VulkanBuffer m_vulkanObjectBuffer;
 
-    VulkanBuffer m_vulkanIndexBuffer;
-    VulkanBuffer m_vulkanVertexBuffer;
+    VulkanBuffer m_vulkanDuckIndexBuffer;
+    VulkanBuffer m_vulkanDuckVertexBuffer;
+
+    VulkanBuffer m_vulkanFloorIndexBuffer;
+    VulkanBuffer m_vulkanFloorVertexBuffer;
 
     VkRenderPass m_vulkanRenderPass;
     VkDescriptorPool m_vulkanDescriptorPool = VK_NULL_HANDLE;
@@ -66,5 +69,6 @@ private:
     VkShaderModule m_fragmentShader = VK_NULL_HANDLE;
     VkPipeline m_vulkanPipeline = VK_NULL_HANDLE;
     
-    MeshLoader::Mesh m_mesh;
+    MeshLoader::Mesh m_duckMesh;
+    MeshLoader::Mesh m_floorMesh;
 };

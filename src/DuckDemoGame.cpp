@@ -19,8 +19,10 @@ DuckDemoGame::~DuckDemoGame()
 {
     m_vulkanFrameBuffer.Reset();
     m_vulkanObjectBuffer.Reset();
-    m_vulkanIndexBuffer.Reset();
-    m_vulkanVertexBuffer.Reset();
+    m_vulkanDuckIndexBuffer.Reset();
+    m_vulkanDuckVertexBuffer.Reset();
+    m_vulkanFloorIndexBuffer.Reset();
+    m_vulkanFloorVertexBuffer.Reset();
 
     if (m_vulkanPipeline)
     {
@@ -125,7 +127,7 @@ bool DuckDemoGame::OnInit()
     std::array<VkDescriptorPoolSize, 2> descriptorPoolSize;
     descriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorPoolSize[0].descriptorCount = 1;
-    descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     descriptorPoolSize[1].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
@@ -144,7 +146,7 @@ bool DuckDemoGame::OnInit()
     }
 
     DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanFrameBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(ObjectBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(ObjectBuf) * 2),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
 
     VkDescriptorSetLayoutBinding frameBufDescriptorSetLayoutBinding;
     frameBufDescriptorSetLayoutBinding.binding = 0;
@@ -155,7 +157,7 @@ bool DuckDemoGame::OnInit()
 
     VkDescriptorSetLayoutBinding objectBufDescriptorSetLayoutBinding;
     objectBufDescriptorSetLayoutBinding.binding = 0;
-    objectBufDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    objectBufDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     objectBufDescriptorSetLayoutBinding.descriptorCount = 1;
     objectBufDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     objectBufDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
@@ -226,7 +228,7 @@ bool DuckDemoGame::OnInit()
     objectBufWriteDescriptorSet.dstBinding = 0;
     objectBufWriteDescriptorSet.dstArrayElement = 0;
     objectBufWriteDescriptorSet.descriptorCount = 1;
-    objectBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    objectBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     objectBufWriteDescriptorSet.pBufferInfo = &objectBufDescriptorBufferInfo;
     objectBufWriteDescriptorSet.pImageInfo = nullptr;
     objectBufWriteDescriptorSet.pTexelBufferView = nullptr;
@@ -466,9 +468,6 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
-    constexpr bool useModel = true;
-
-    if (useModel)
     {
         std::unique_ptr<DuckDemoFile> modelFile = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/kachujin_g_rosales.fbx");
         if (modelFile == nullptr)
@@ -477,45 +476,63 @@ bool DuckDemoGame::OnInit()
             return false;
         }
 
-        if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, m_mesh))
+        if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, m_duckMesh))
         {
             DUCK_DEMO_ASSERT(false);
             return false;
         }
+
+        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_duckMesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanDuckVertexBuffer));
+        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * m_duckMesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanDuckIndexBuffer));
+
+        FillVulkanBuffer(m_vulkanDuckVertexBuffer, m_duckMesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_duckMesh.vertexCount);
+        FillVulkanBuffer(m_vulkanDuckIndexBuffer, m_duckMesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_duckMesh.indexCount);
     }
-    else
+
     {
-        if (!MeshLoader::Loader::LoadCubePrimitive(m_mesh, 2.0f, 2.0f, 2.0f))
+        if (!MeshLoader::Loader::LoadCubePrimitive(m_floorMesh, 50.0f, 5.0f, 50.0f))
         {
             DUCK_DEMO_ASSERT(false);
             return false;
         }
+
+        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_floorMesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanFloorVertexBuffer));
+        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * m_floorMesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanFloorIndexBuffer));
+
+        FillVulkanBuffer(m_vulkanFloorVertexBuffer, m_floorMesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_floorMesh.vertexCount);
+        FillVulkanBuffer(m_vulkanFloorIndexBuffer, m_floorMesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_floorMesh.indexCount);
     }
 
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_mesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanVertexBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * m_mesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanIndexBuffer));
+    {
+        const glm::vec3 objectPosition = glm::vec3(0.0f);
+        const glm::vec3 objectScale = glm::vec3(1.0f);
+        const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(180.0f), 0.0f, 0.0f));
 
-    FillVulkanBuffer(m_vulkanVertexBuffer, m_mesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_mesh.vertexCount);
-    FillVulkanBuffer(m_vulkanIndexBuffer, m_mesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_mesh.indexCount);
+        ObjectBuf objectBuf;
+        objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
+        objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
+        objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+        objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
+        objectBuf.uRoughness = 0.2f;
+        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), sizeof(ObjectBuf) * 0);
+    }
 
-    const glm::vec3 objectPosition = glm::vec3(0.0f);
-    const glm::vec3 objectScale = glm::vec3(1.0f);
-    const glm::quat objectRotation = useModel ? 
-        glm::quat(glm::vec3(glm::radians(180.0f), 0.0f, 0.0f)) :
-        glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
+    {
+        const glm::vec3 objectPosition = glm::vec3(0.0f, 20.0f, 25.0f);
+        const glm::vec3 objectScale = glm::vec3(1.0f);
+        const glm::quat objectRotation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
-    ObjectBuf objectBuf;
-    objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
-    objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
-    objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
-    objectBuf.uRoughness = 0.2f;
-    FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf));
+        ObjectBuf objectBuf;
+        objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
+        objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
+        objectBuf.uDiffuseAlbedo = glm::vec4(0.930f, 0.530f, 0.823f, 1.0f);
+        objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
+        objectBuf.uRoughness = 0.2f;
+        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), sizeof(ObjectBuf) * 1);
+    }
 
     const glm::mat4 cameraRotation = glm::toMat4(glm::quat(glm::vec3(glm::radians(0.0f), glm::radians(0.0f), 0.0f)));
-    const glm::vec3 cameraPosition = useModel ? 
-        glm::vec3(0.0f, -80.0f, -150.0f) :
-        glm::vec3(0.0f, 0.0f, -6.0f);
+    const glm::vec3 cameraPosition = glm::vec3(0.0f, -80.0f, -150.0f);
 
     const glm::vec3 cameraForward = cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
 
@@ -606,8 +623,6 @@ void DuckDemoGame::OnRender()
 
     vkCmdBindPipeline(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline);
 
-    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, static_cast<uint32_t>(m_vulkanDescriptorSets.size()), m_vulkanDescriptorSets.data(), 0, nullptr);
-
     VkViewport viewport;
     viewport.x = 0;
     viewport.y = 0;
@@ -624,11 +639,31 @@ void DuckDemoGame::OnRender()
     scissor.extent.height = m_vulkanSwapchainHeight;
     vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
 
-    const VkDeviceSize vertexOffset = 0;
-    vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanVertexBuffer.m_buffer, &vertexOffset);
-    vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, 1, &m_vulkanDescriptorSets[0], 0, nullptr);
 
-    vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, m_mesh.indexCount, 1, 0, 0, 0);
+    // duck
+    {
+        uint32_t dynamicOffsets = sizeof(ObjectBuf) * 0;
+        vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
+
+        const VkDeviceSize vertexOffset = 0;
+        vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanDuckVertexBuffer.m_buffer, &vertexOffset);
+        vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanDuckIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, m_duckMesh.indexCount, 1, 0, 0, 0);
+    }
+
+    // floor
+    {
+        uint32_t dynamicOffsets = sizeof(ObjectBuf) * 1;
+        vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
+
+        const VkDeviceSize vertexOffset = 0;
+        vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanFloorVertexBuffer.m_buffer, &vertexOffset);
+        vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanFloorIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, m_floorMesh.indexCount, 1, 0, 0, 0);
+    }
 
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
 }
