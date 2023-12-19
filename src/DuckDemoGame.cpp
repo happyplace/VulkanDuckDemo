@@ -2,9 +2,7 @@
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/quaternion.hpp"
-#include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/transform.hpp"
-#include "glm/glm.hpp"
 #include "glm/gtx/euler_angles.hpp"
 
 #include "meshloader/MeshLoader.h"
@@ -531,31 +529,10 @@ bool DuckDemoGame::OnInit()
         FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), sizeof(ObjectBuf) * 1);
     }
 
-    const glm::mat4 cameraRotation = glm::toMat4(glm::quat(glm::vec3(glm::radians(0.0f), glm::radians(0.0f), 0.0f)));
-    const glm::vec3 cameraPosition = glm::vec3(0.0f, -80.0f, -150.0f);
-
-    const glm::vec3 cameraForward = cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-
-    const glm::vec3 lookAtUp = cameraRotation * glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-    const glm::vec3 lookAtTarget = cameraPosition + cameraForward;
-    const glm::mat4x4 view = glm::lookAt(cameraPosition, lookAtTarget, lookAtUp);
-
-    const glm::mat4x4 proj = glm::perspectiveFov(
-        glm::radians(90.0f), 
-        static_cast<float>(m_vulkanSwapchainWidth), 
-        static_cast<float>(m_vulkanSwapchainHeight), 
-        1.0f, 
-        1000.0f);
-
-    FrameBuf frameBuf;
-    frameBuf.uViewProj = glm::transpose(proj * view);
-    frameBuf.uEyePosW = cameraPosition;
-    
-    frameBuf.uAmbientLight = glm::vec4(0.25f, 0.25f, 0.25f, 1.0f);
-
-    frameBuf.uDirLight.uDirection = glm::vec3(0.57735f, -0.57735f, 0.57735f);
-    frameBuf.uDirLight.uStrength = glm::vec3(0.6f, 0.6f, 0.6f);
-    FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
+    m_cameraRotationX = 0.0f;
+    m_cameraRotationY = 0.0f;
+    m_cameraPosition = glm::vec3(0.0f, -80.0f, -150.0f);
+    UpdateFrameBuffer();
 
     return true;
 }
@@ -603,7 +580,104 @@ void DuckDemoGame::OnResize()
 
 void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
 {
+    SDL_GameController* gameController = nullptr;
 
+    const int numJoysticks = SDL_NumJoysticks();
+    for (int i = 0; i < numJoysticks; ++i)
+    {
+        gameController = SDL_GameControllerOpen(i);
+        if (gameController == nullptr)
+        {
+            DUCK_DEMO_SHOW_ERROR("SDL_GameControllerOpen Error", SDL_GetError());
+        }
+    }
+
+    if (gameController)
+    {
+        constexpr int axisDeadZone = 8000;
+        constexpr float maxAxisValue = 32768.0f - axisDeadZone;
+
+        constexpr float cameraMoveSpeed = 100.0f;
+        constexpr float cameraTurnSpeed = 120.0f;
+
+        {
+            const Sint16 xAxisRawValue = SDL_GameControllerGetAxis(gameController, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_RIGHTX);
+            float xAxis = SDL_max(0, SDL_abs(xAxisRawValue) - axisDeadZone) / maxAxisValue;
+            xAxis = SDL_min(1.0f, xAxis);
+            xAxis = xAxisRawValue < 0 ? xAxis : -xAxis;
+
+            const Sint16 yAxisRawValue = SDL_GameControllerGetAxis(gameController, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_RIGHTY);
+            float yAxis = SDL_max(0, SDL_abs(yAxisRawValue) - axisDeadZone) / maxAxisValue;
+            yAxis = SDL_min(1.0f, yAxis);
+            yAxis = yAxisRawValue < 0 ? yAxis : -yAxis;
+
+            glm::vec2 controllerAxis = glm::vec2(xAxis, yAxis);
+            if (glm::epsilonNotEqual(0.0f, glm::length(controllerAxis), glm::epsilon<float>()))
+            {
+                controllerAxis = glm::normalize(controllerAxis);
+            }
+
+            m_cameraRotationX += controllerAxis.x * cameraTurnSpeed * static_cast<float>(gameTimer.DeltaTime());
+            m_cameraRotationY += controllerAxis.y * cameraTurnSpeed * static_cast<float>(gameTimer.DeltaTime());
+
+            m_cameraRotationX = DuckDemoUtils::WrapAngle<float>(m_cameraRotationX);
+            m_cameraRotationY = DuckDemoUtils::WrapAngle<float>(m_cameraRotationY);
+
+            m_cameraRotation = glm::quat(glm::vec3(glm::radians(m_cameraRotationY), glm::radians(m_cameraRotationX), 0.0f));
+        }
+
+        {
+            const Sint16 yAxisRawValue = SDL_GameControllerGetAxis(gameController, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_LEFTY);
+            float yAxis = SDL_max(0, SDL_abs(yAxisRawValue) - axisDeadZone) / maxAxisValue;
+            yAxis = SDL_min(1.0f, yAxis);
+            yAxis = yAxisRawValue < 0 ? yAxis : -yAxis;
+
+            const Sint16 xAxisRawValue = SDL_GameControllerGetAxis(gameController, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_LEFTX);
+            float xAxis = SDL_max(0, SDL_abs(xAxisRawValue) - axisDeadZone) / maxAxisValue;
+            xAxis = SDL_min(1.0f, xAxis);
+            xAxis = xAxisRawValue < 0 ? xAxis : -xAxis;
+
+            glm::vec2 controllerAxis = glm::vec2(xAxis, yAxis);
+            if (glm::epsilonNotEqual(0.0f, glm::length(controllerAxis), glm::epsilon<float>()))
+            {
+                controllerAxis = glm::normalize(controllerAxis);
+            }
+
+            const glm::vec3 cameraForward = m_cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+            const glm::vec3 cameraRight = m_cameraRotation * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+
+            m_cameraPosition += cameraForward * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * controllerAxis.y;
+            m_cameraPosition += cameraRight * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * controllerAxis.x;
+        }
+    }
+
+    UpdateFrameBuffer();
+}
+
+void DuckDemoGame::UpdateFrameBuffer()
+{
+    const glm::vec3 cameraForward = m_cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+
+    const glm::vec3 lookAtUp = m_cameraRotation * glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+    const glm::vec3 lookAtTarget = m_cameraPosition + cameraForward;
+    const glm::mat4x4 view = glm::lookAt(m_cameraPosition, lookAtTarget, lookAtUp);
+
+    const glm::mat4x4 proj = glm::perspectiveFov(
+        glm::radians(90.0f), 
+        static_cast<float>(m_vulkanSwapchainWidth), 
+        static_cast<float>(m_vulkanSwapchainHeight), 
+        1.0f, 
+        1000.0f);
+
+    FrameBuf frameBuf;
+    frameBuf.uViewProj = glm::transpose(proj * view);
+    frameBuf.uEyePosW = m_cameraPosition;
+    
+    frameBuf.uAmbientLight = glm::vec4(0.25f, 0.25f, 0.25f, 1.0f);
+
+    frameBuf.uDirLight.uDirection = glm::vec3(0.57735f, -0.57735f, 0.57735f);
+    frameBuf.uDirLight.uStrength = glm::vec3(0.6f, 0.6f, 0.6f);
+    FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
 }
 
 void DuckDemoGame::OnRender()

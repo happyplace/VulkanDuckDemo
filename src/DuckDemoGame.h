@@ -5,8 +5,8 @@
 #include "Game.h"
 #include "DuckDemoUtils.h"
 
-#include <glm/mat4x4.hpp>
-#include <glm/vec3.hpp>
+#include "glm/glm.hpp"
+#include "glm/gtc/quaternion.hpp"
 
 #include "meshloader/Mesh.h"
 
@@ -49,6 +49,8 @@ private:
     virtual void OnUpdate(const GameTimer& gameTimer) override;
     virtual void OnRender() override;
 
+    void UpdateFrameBuffer();
+
     std::vector<VkFramebuffer> m_vulkanFrameBuffers;
 
     VulkanBuffer m_vulkanFrameBuffer;
@@ -71,4 +73,9 @@ private:
     
     MeshLoader::Mesh m_duckMesh;
     MeshLoader::Mesh m_floorMesh;
+
+    glm::quat m_cameraRotation;
+    glm::vec3 m_cameraPosition;
+    float m_cameraRotationX;
+    float m_cameraRotationY;
 };
