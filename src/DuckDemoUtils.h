@@ -58,4 +58,14 @@ namespace DuckDemoUtils
         std::snprintf(buf.get(), size, format.c_str(), args ...);
         return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
     }
+
+    template<typename T>
+    T WrapAngle(T angle)
+    {
+        constexpr int64_t maxAngle = 360;
+        const int64_t intAngle = static_cast<int64_t>(angle);
+        T remainder = angle - intAngle;
+        T wrappedAngle = static_cast<T>(intAngle % maxAngle) + remainder;
+        return wrappedAngle < static_cast<T>(0) ? static_cast<T>(maxAngle) - abs(wrappedAngle) : wrappedAngle;
+    }
 }
