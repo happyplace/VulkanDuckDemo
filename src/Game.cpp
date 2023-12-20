@@ -126,7 +126,7 @@ Game::~Game()
     SDL_Quit();
 }
 
-int Game::Run(int argc, char** argv)
+int Game::Run(int /*argc*/, char** /*argv*/)
 {
     if (!InitWindow())
     {
@@ -257,7 +257,7 @@ bool Game::InitWindow()
 #ifdef DUCK_DEMO_VULKAN_DEBUG
 /// @brief A debug callback called from Vulkan validation layers.
 static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
-    VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT type, uint64_t object, size_t location, int32_t message_code, 
+    VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT /*type*/, uint64_t /*object*/, size_t /*location*/, int32_t /*message_code*/, 
     const char *layer_prefix, const char *message, void *user_data)
 {
     if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
