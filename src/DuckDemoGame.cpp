@@ -7,6 +7,8 @@
 
 #include "meshloader/MeshLoader.h"
 
+constexpr bool s_wireframeMode = false;
+
 DuckDemoGame::DuckDemoGame()
 {
     DUCK_DEMO_ASSERT(!ms_instance);
@@ -274,7 +276,21 @@ bool DuckDemoGame::OnInit()
         return false;
     }
     
-    result = CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &m_fragmentShader);
+    shaderc_compile_options_t compileOptions = nullptr;
+    if (s_wireframeMode)
+    {
+        compileOptions = shaderc_compile_options_initialize();
+        if (compileOptions == nullptr)
+        {
+            DUCK_DEMO_ASSERT(false);
+            return false;
+        }
+
+        std::string isWireframe = "IS_WIREFRAME";
+        shaderc_compile_options_add_macro_definition(compileOptions,isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
+    }
+
+    result = CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &m_fragmentShader, compileOptions);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -365,11 +381,9 @@ bool DuckDemoGame::OnInit()
     pipelineRasterizationStateCreateInfo.flags = 0;
     pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-    pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-    //pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_LINE;
-    pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
-    //pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-    pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    pipelineRasterizationStateCreateInfo.polygonMode = s_wireframeMode ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+    pipelineRasterizationStateCreateInfo.cullMode = s_wireframeMode ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+    pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
     pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
     pipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;

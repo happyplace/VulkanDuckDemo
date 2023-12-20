@@ -835,7 +835,7 @@ void Game::EndRender()
     vkResetFences(m_vulkanDevice, 1, &m_vulkanSubmitFence);
 }
 
-VkResult Game::CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule)
+VkResult Game::CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule, const shaderc_compile_options_t compileOptions /*= nullptr*/)
 {
     std::unique_ptr<DuckDemoFile> shaderFile = DuckDemoUtils::LoadFileFromDisk(path);
     DUCK_DEMO_ASSERT(shaderFile);
@@ -848,7 +848,7 @@ VkResult Game::CompileShaderFromDisk(const std::string& path, const shaderc_shad
         m_shaderCompiler,
         shaderFile->buffer.get(),
         shaderFile->bufferSize, shaderKind,
-        "Shader.file", "main", nullptr);
+        "Shader.file", "main", compileOptions);
 
     DUCK_DEMO_ASSERT(result);
     if (result == nullptr)

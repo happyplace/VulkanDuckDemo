@@ -80,6 +80,9 @@ vec3 ComputeDirectionalLight(DirectionalLightBuf light, vec3 normal, vec3 toEye)
 
 void main()
 {
+#ifdef IS_WIREFRAME
+    fFragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+#else
     vec3 normalizedNormalW = normalize(vNormalW);
     vec3 toEyeW = normalize(Frame.uEyePosW - vPositionW);
 
@@ -94,4 +97,5 @@ void main()
     
     // Common convention to take alpha from diffuse material.
     fFragColor.a = Object.uDiffuseAlbedo.a;
+#endif // IS_WIREFRAME
 }
