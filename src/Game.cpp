@@ -68,6 +68,21 @@ Game::~Game()
 
     shaderc_compiler_release(m_shaderCompiler);
 
+    if (m_vulkanDepthStencilImageView)
+    {
+        vkDestroyImageView(m_vulkanDevice, m_vulkanDepthStencilImageView, s_allocator);
+    }
+
+    if (m_vulkanDepthStencilImage)
+    {
+        vkDestroyImage(m_vulkanDevice, m_vulkanDepthStencilImage, s_allocator);
+    }
+
+    if (m_vulkanDepthStencilImageMemory)
+    {
+        vkFreeMemory(m_vulkanDevice, m_vulkanDepthStencilImageMemory, s_allocator);
+    }
+
     if (m_vulkanPrimaryCommandBuffer)
     {
         vkFreeCommandBuffers(m_vulkanDevice, m_vulkanPrimaryCommandPool, 1, &m_vulkanPrimaryCommandBuffer);
@@ -153,6 +168,11 @@ int Game::Run(int /*argc*/, char** /*argv*/)
     }
 
     if (!InitVulkanGameResources())
+    {
+        return 1;
+    }
+
+    if (!InitVulkanDepthStencilImage())
     {
         return 1;
     }
@@ -258,7 +278,7 @@ bool Game::InitWindow()
 /// @brief A debug callback called from Vulkan validation layers.
 static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
     VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT /*type*/, uint64_t /*object*/, size_t /*location*/, int32_t /*message_code*/, 
-    const char *layer_prefix, const char *message, void *user_data)
+    const char* layer_prefix, const char* message, void* /*user_data*/)
 {
     if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
     {
@@ -965,4 +985,82 @@ void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const 
     vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, offset, static_cast<VkDeviceSize>(dataSize), 0, &gpuMemory);
     memcpy(gpuMemory, data, std::min(dataSize, vulkanBuffer.m_deviceSize));
     vkUnmapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory);
+}
+
+bool Game::InitVulkanDepthStencilImage()
+{
+    VkImageCreateInfo imageCreateInfo;
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.pNext = nullptr;
+    imageCreateInfo.flags = 0;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    imageCreateInfo.extent.width = m_vulkanSwapchainWidth;
+    imageCreateInfo.extent.height = m_vulkanSwapchainHeight;
+    imageCreateInfo.extent.depth = 1;
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.queueFamilyIndexCount = 0;
+    imageCreateInfo.pQueueFamilyIndices = nullptr;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VkResult result = vkCreateImage(m_vulkanDevice, &imageCreateInfo, s_allocator, &m_vulkanDepthStencilImage);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements(m_vulkanDevice, m_vulkanDepthStencilImage, &memoryRequirements);
+
+    VkMemoryAllocateInfo memoryAllocateInfo;
+    memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryAllocateInfo.pNext = nullptr;
+    memoryAllocateInfo.allocationSize = memoryRequirements.size;
+    memoryAllocateInfo.memoryTypeIndex = FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryRequirements.memoryTypeBits);
+
+    result = vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &m_vulkanDepthStencilImageMemory);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    result = vkBindImageMemory(m_vulkanDevice, m_vulkanDepthStencilImage, m_vulkanDepthStencilImageMemory, 0);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    VkImageViewCreateInfo imageViewCreateInfo;
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.pNext = nullptr;
+    imageViewCreateInfo.flags = 0;
+    imageViewCreateInfo.image = m_vulkanDepthStencilImage;
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = imageCreateInfo.format;
+    imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = 1;
+
+    result = vkCreateImageView(m_vulkanDevice, &imageViewCreateInfo, s_allocator, &m_vulkanDepthStencilImageView);
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    if (result != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    return true;
 }

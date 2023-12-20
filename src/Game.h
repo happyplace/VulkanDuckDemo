@@ -56,6 +56,7 @@ protected:
     uint32_t m_vulkanSwapchainHeight = 0;
     uint32_t m_currentSwapchainImageIndex = 0;
     std::vector<VkImageView> m_vulkanSwapchainImageViews;
+    VkImageView m_vulkanDepthStencilImageView = VK_NULL_HANDLE;
 
 private:
     bool InitWindow();
@@ -63,6 +64,7 @@ private:
     bool InitVulkanDevice();
     bool InitVulkanSwapChain(const int32_t width, const int32_t height);
     bool InitVulkanGameResources();
+    bool InitVulkanDepthStencilImage();
 
     void Update();
     void Resize(int32_t width = -1, int32_t height = -1);
@@ -84,6 +86,8 @@ private:
     VkCommandPool m_vulkanPrimaryCommandPool;
     VkFence m_vulkanSubmitFence = VK_NULL_HANDLE;
     shaderc_compiler_t m_shaderCompiler = nullptr;
+    VkImage m_vulkanDepthStencilImage = VK_NULL_HANDLE;
+    VkDeviceMemory m_vulkanDepthStencilImageMemory = VK_NULL_HANDLE;
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;

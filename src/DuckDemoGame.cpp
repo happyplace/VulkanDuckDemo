@@ -68,20 +68,35 @@ DuckDemoGame::~DuckDemoGame()
 
 bool DuckDemoGame::OnInit()
 {
-    VkAttachmentDescription attachmentDescription;
-    attachmentDescription.flags = 0;
-    attachmentDescription.format = m_vulkanSwapchainPixelFormat;
-    attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-    attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    std::array<VkAttachmentDescription, 2> attachmentDescriptions;
+
+    attachmentDescriptions[0].flags = 0;
+    attachmentDescriptions[0].format = m_vulkanSwapchainPixelFormat;
+    attachmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    attachmentDescriptions[1].flags = 0;
+    attachmentDescriptions[1].format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    attachmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colourAttachmentReference;
     colourAttachmentReference.attachment = 0;
     colourAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentReference;
+    depthAttachmentReference.attachment = 1;
+    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpassDescription;
     subpassDescription.flags = 0;
@@ -91,29 +106,31 @@ bool DuckDemoGame::OnInit()
     subpassDescription.colorAttachmentCount = 1;
     subpassDescription.pColorAttachments = &colourAttachmentReference;
     subpassDescription.pResolveAttachments = nullptr;
-    subpassDescription.pDepthStencilAttachment = nullptr;
+    subpassDescription.pDepthStencilAttachment = &depthAttachmentReference;
     subpassDescription.preserveAttachmentCount = 0;
     subpassDescription.pPreserveAttachments = nullptr;
 
-    VkSubpassDependency subpassDependency;
-    subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    subpassDependency.dstSubpass = 0;
-    subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    subpassDependency.srcAccessMask = 0;
-    subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    subpassDependency.dependencyFlags = 0;
+    // VkSubpassDependency subpassDependency;
+    // subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    // subpassDependency.dstSubpass = 0;
+    // subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    // subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    // subpassDependency.srcAccessMask = 0;
+    // subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    // subpassDependency.dependencyFlags = 0;
 
     VkRenderPassCreateInfo renderPassCreateInfo;
     renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassCreateInfo.pNext = nullptr;
     renderPassCreateInfo.flags = 0;
-    renderPassCreateInfo.attachmentCount = 1;
-    renderPassCreateInfo.pAttachments = &attachmentDescription;
+    renderPassCreateInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
+    renderPassCreateInfo.pAttachments = attachmentDescriptions.data();
     renderPassCreateInfo.subpassCount = 1;
     renderPassCreateInfo.pSubpasses = &subpassDescription;
-    renderPassCreateInfo.dependencyCount = 1;
-    renderPassCreateInfo.pDependencies = &subpassDependency;
+    //renderPassCreateInfo.dependencyCount = 1;
+    //renderPassCreateInfo.pDependencies = &subpassDependency;
+    renderPassCreateInfo.dependencyCount = 0;
+    renderPassCreateInfo.pDependencies = nullptr;
 
     DUCK_DEMO_VULKAN_ASSERT(vkCreateRenderPass(m_vulkanDevice, &renderPassCreateInfo, s_allocator, &m_vulkanRenderPass));
 
@@ -541,19 +558,23 @@ bool DuckDemoGame::InitFrameBuffers()
 {
     m_vulkanFrameBuffers.clear();
 
+    std::array<VkImageView, 2> attachments;
+    attachments[1] = m_vulkanDepthStencilImageView;
+
     VkFramebufferCreateInfo frameBufferCreateInfo;
     frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     frameBufferCreateInfo.pNext = nullptr;
     frameBufferCreateInfo.flags = 0;
     frameBufferCreateInfo.renderPass = m_vulkanRenderPass;
+    frameBufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    frameBufferCreateInfo.pAttachments = attachments.data();
     frameBufferCreateInfo.width = m_vulkanSwapchainWidth;
     frameBufferCreateInfo.height = m_vulkanSwapchainHeight;
     frameBufferCreateInfo.layers = 1;
 
     for (VkImageView imageView : m_vulkanSwapchainImageViews)
     {
-        frameBufferCreateInfo.attachmentCount = 1;
-        frameBufferCreateInfo.pAttachments = &imageView;
+        attachments[0] = imageView;
 
         VkFramebuffer framebuffer;
         DUCK_DEMO_VULKAN_ASSERT(vkCreateFramebuffer(m_vulkanDevice, &frameBufferCreateInfo, s_allocator, &framebuffer));
@@ -682,6 +703,11 @@ void DuckDemoGame::UpdateFrameBuffer()
 
 void DuckDemoGame::OnRender()
 {
+    std::array<VkClearValue, 2> clearValues;
+    clearValues[0] = m_vulkanClearValue;
+    clearValues[1].depthStencil.depth = 1.0f;
+    clearValues[1].depthStencil.stencil = 0u;
+
     VkRenderPassBeginInfo renderPassBeginInfo;
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.pNext = nullptr;
@@ -691,8 +717,8 @@ void DuckDemoGame::OnRender()
     renderPassBeginInfo.renderArea.extent.height = m_vulkanSwapchainHeight;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &m_vulkanClearValue;
+    renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassBeginInfo.pClearValues = clearValues.data();
     vkCmdBeginRenderPass(m_vulkanPrimaryCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdBindPipeline(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline);
