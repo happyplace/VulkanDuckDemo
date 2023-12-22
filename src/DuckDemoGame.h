@@ -17,6 +17,16 @@ struct DUCK_DEMO_ALIGN(16) DirectionalLightBuf
     glm::vec3 uDirection;
 };
 
+struct DUCK_DEMO_ALIGN(16) SpotLightBuf
+{
+    glm::vec3 uStrength;
+    float uFalloffStart;
+    glm::vec3 uDirection;
+    float uFalloffEnd;
+    glm::vec3 uPosition;
+    float uSpotPower;
+};
+
 struct DUCK_DEMO_ALIGN(16) FrameBuf
 {
     glm::mat4 uViewProj;
@@ -24,6 +34,7 @@ struct DUCK_DEMO_ALIGN(16) FrameBuf
     float padding0;
     glm::vec4 uAmbientLight;
     DirectionalLightBuf uDirLight;
+    SpotLightBuf uSpotLight;
 };
 
 struct DUCK_DEMO_ALIGN(16) ObjectBuf

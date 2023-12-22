@@ -276,19 +276,24 @@ bool DuckDemoGame::OnInit()
         return false;
     }
     
-    shaderc_compile_options_t compileOptions = nullptr;
+    shaderc_compile_options_t compileOptions = shaderc_compile_options_initialize();
+    if (compileOptions == nullptr)
+    {
+        DUCK_DEMO_ASSERT(false);
+        return false;
+    }
+
     if (s_wireframeMode)
     {
-        compileOptions = shaderc_compile_options_initialize();
-        if (compileOptions == nullptr)
-        {
-            DUCK_DEMO_ASSERT(false);
-            return false;
-        }
-
         std::string isWireframe = "IS_WIREFRAME";
-        shaderc_compile_options_add_macro_definition(compileOptions,isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
+        shaderc_compile_options_add_macro_definition(compileOptions, isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
     }
+
+    const std::string useDirectionalLight = "USE_DIRECTIONAL_LIGHT";
+    shaderc_compile_options_add_macro_definition(compileOptions, useDirectionalLight.c_str(), static_cast<size_t>(useDirectionalLight.size()), nullptr, 0);
+
+    const std::string useSpotLight = "USE_SPOT_LIGHT";
+    //shaderc_compile_options_add_macro_definition(compileOptions, useSpotLight.c_str(), static_cast<size_t>(useSpotLight.size()), nullptr, 0);
 
     result = CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &m_fragmentShader, compileOptions);
     if (result != VK_SUCCESS)
@@ -519,7 +524,7 @@ bool DuckDemoGame::OnInit()
     }
 
     {
-        if (!MeshLoader::Loader::LoadCubePrimitive(m_floorMesh, 50.0f, 5.0f, 50.0f))
+        if (!MeshLoader::Loader::LoadCubePrimitive(m_floorMesh, 500.0f, 5.0f, 500.0f))
         {
             DUCK_DEMO_ASSERT(false);
             return false;
@@ -533,7 +538,7 @@ bool DuckDemoGame::OnInit()
     }
 
     {
-        const glm::vec3 objectPosition = glm::vec3(0.0f);
+        const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
         const glm::vec3 objectScale = glm::vec3(1.0f);
         const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(180.0f), 0.0f, 0.0f));
 
@@ -547,7 +552,7 @@ bool DuckDemoGame::OnInit()
     }
 
     {
-        const glm::vec3 objectPosition = glm::vec3(0.0f, 20.0f, 25.0f);
+        const glm::vec3 objectPosition = glm::vec3(0.0f, 0.0f, 0.0f);
         const glm::vec3 objectScale = glm::vec3(1.0f);
         const glm::quat objectRotation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
 
@@ -732,6 +737,14 @@ void DuckDemoGame::UpdateFrameBuffer()
 
     frameBuf.uDirLight.uDirection = glm::vec3(0.57735f, -0.57735f, 0.57735f);
     frameBuf.uDirLight.uStrength = glm::vec3(0.6f, 0.6f, 0.6f);
+
+    frameBuf.uSpotLight.uDirection = glm::vec3(0.0f, -1.0f, 0.0f);
+    frameBuf.uSpotLight.uStrength = glm::vec3(0.6f, 0.6f, 0.6f);
+    frameBuf.uSpotLight.uPosition = glm::vec3(0.0f, 10.0f, 0.0f);
+    frameBuf.uSpotLight.uFalloffStart = 200.0f;
+    frameBuf.uSpotLight.uFalloffEnd = 300.0f;
+    frameBuf.uSpotLight.uSpotPower = 80.0f;
+
     FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
 }
 

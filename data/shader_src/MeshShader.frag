@@ -9,6 +9,16 @@ struct DirectionalLightBuf
     vec3 uDirection;
 };
 
+struct SpotLightBuf
+{
+    vec3 uStrength;
+    float uFalloffStart;
+    vec3 uDirection;
+    float uFalloffEnd;
+    vec3 uPosition;
+    float uSpotPower;
+};
+
 layout(std140, set = 0, binding = 0) uniform FrameBuf
 {
     mat4 uViewProj;
@@ -16,6 +26,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     float padding0;
     vec4 uAmbientLight;
     DirectionalLightBuf uDirLight;
+    SpotLightBuf uSpotLight;
 } Frame;
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
@@ -34,6 +45,12 @@ layout(location = 0) out vec4 fFragColor;
 float saturate(float value)
 {
     return clamp(value, 0.0, 1.0); 
+}
+
+float CalcAttenuation(float d, float falloffStart, float falloffEnd)
+{
+    // Linear falloff.
+    return saturate((falloffEnd-d) / (falloffEnd - falloffStart));
 }
 
 // Schlick gives an approximation to Fresnel reflectance (see pg. 233 "Real-Time Rendering 3rd Ed.").
@@ -78,6 +95,36 @@ vec3 ComputeDirectionalLight(DirectionalLightBuf light, vec3 normal, vec3 toEye)
     return BlinnPhong(lightStrength, lightVec, normal, toEye);
 }
 
+vec3 ComputeSpotLight(SpotLightBuf light, vec3 pos, vec3 normal, vec3 toEye)
+{
+    // The vector from the surface to the light.
+    vec3 lightVec = light.uPosition - pos;
+
+    // The distance from surface to light.
+    float d = length(lightVec);
+
+    // Range test.
+    if(d > light.uFalloffEnd)
+        return vec3(0.0f);
+
+    // Normalize the light vector.
+    lightVec /= d;
+
+    // Scale light down by Lambert's cosine law.
+    float ndotl = max(dot(lightVec, normal), 0.0f);
+    vec3 lightStrength = light.uStrength * ndotl;
+
+    // Attenuate light by distance.
+    float att = CalcAttenuation(d, light.uFalloffStart, light.uFalloffEnd);
+    lightStrength *= att;
+
+    // Scale by spotlight
+    float spotFactor = pow(max(dot(-lightVec, light.uDirection), 0.0f), light.uSpotPower);
+    lightStrength *= spotFactor;
+
+    return BlinnPhong(lightStrength, lightVec, normal, toEye);
+}
+
 void main()
 {
 #ifdef IS_WIREFRAME
@@ -91,7 +138,13 @@ void main()
     const float shadowFactor = 1.0f;
 
     vec3 lightResult = vec3(0.0f, 0.0f, 0.0f);
+#ifdef USE_DIRECTIONAL_LIGHT
     lightResult += shadowFactor * ComputeDirectionalLight(Frame.uDirLight, normalizedNormalW, toEyeW);
+#endif // USE_DIRECTIONAL_LIGHT
+
+#ifdef USE_SPOT_LIGHT
+    lightResult += shadowFactor * ComputeSpotLight(Frame.uSpotLight, vPositionW, normalizedNormalW, toEyeW);
+#endif // USE_SPOT_LIGHT
 
     fFragColor = ambient + vec4(lightResult.x, lightResult.y, lightResult.z, 0.0f);
     

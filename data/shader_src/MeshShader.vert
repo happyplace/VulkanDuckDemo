@@ -9,6 +9,16 @@ struct DirectionalLightBuf
     vec3 uDirection;
 };
 
+struct SpotLightBuf
+{
+    vec3 uStrength;
+    float uFalloffStart;
+    vec3 uDirection;
+    float uFalloffEnd;
+    vec3 uPosition;
+    float uSpotPower;
+};
+
 layout(std140, set = 0, binding = 0) uniform FrameBuf
 {
     mat4 uViewProj;
@@ -16,6 +26,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     float padding0;
     vec4 uAmbientLight;
     DirectionalLightBuf uDirLight;
+    SpotLightBuf uSpotLight;
 } Frame;
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
@@ -35,6 +46,7 @@ layout(location = 1) out vec3 vPositionW;
 void main()
 {
     vec4 posW = vec4(aPosition, 1.0f) * Object.uWorld;
+    vPositionW = posW.xyz;
     gl_Position = posW * Frame.uViewProj;
 
     vNormalW = aNormal * mat3(Object.uWorld);
