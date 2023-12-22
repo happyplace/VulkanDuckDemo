@@ -634,6 +634,7 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
 
         constexpr float cameraMoveSpeed = 100.0f;
         constexpr float cameraTurnSpeed = 120.0f;
+        constexpr float cameraRaiseSpeed = 150.0f;
 
         {
             const Sint16 xAxisRawValue = SDL_GameControllerGetAxis(gameController, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_RIGHTX);
@@ -683,6 +684,25 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
 
             m_cameraPosition += cameraForward * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * controllerAxis.y;
             m_cameraPosition += cameraRight * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * controllerAxis.x;
+        }
+
+        {
+            const Uint8 leftShoulder = SDL_GameControllerGetButton(gameController, SDL_GameControllerButton::SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
+            const Uint8 rightShoulder = SDL_GameControllerGetButton(gameController, SDL_GameControllerButton::SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
+
+            int yAxis = 0.0f;
+            if (leftShoulder == 1)
+            {
+                yAxis -= 1;
+            }
+            if (rightShoulder == 1)
+            {
+                yAxis += 1;
+            }
+
+            const glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+            m_cameraPosition += worldUp * cameraRaiseSpeed * static_cast<float>(gameTimer.DeltaTime()) * static_cast<float>(yAxis);
         }
     }
 
