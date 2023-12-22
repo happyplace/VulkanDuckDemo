@@ -19,6 +19,14 @@ struct SpotLightBuf
     float uSpotPower;
 };
 
+struct PointLightBuf
+{
+    vec3 uStrength;
+    float uFalloffStart;
+    vec3 uPosition;
+    float uFalloffEnd;
+};
+
 layout(std140, set = 0, binding = 0) uniform FrameBuf
 {
     mat4 uViewProj;
@@ -27,6 +35,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     vec4 uAmbientLight;
     DirectionalLightBuf uDirLight;
     SpotLightBuf uSpotLight;
+    PointLightBuf uPointLights[2];
 } Frame;
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf

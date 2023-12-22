@@ -19,6 +19,14 @@ struct SpotLightBuf
     float uSpotPower;
 };
 
+struct PointLightBuf
+{
+    vec3 uStrength;
+    float uFalloffStart;
+    vec3 uPosition;
+    float uFalloffEnd;
+};
+
 layout(std140, set = 0, binding = 0) uniform FrameBuf
 {
     mat4 uViewProj;
@@ -27,6 +35,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     vec4 uAmbientLight;
     DirectionalLightBuf uDirLight;
     SpotLightBuf uSpotLight;
+    PointLightBuf uPointLights[2];
 } Frame;
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
@@ -125,6 +134,32 @@ vec3 ComputeSpotLight(SpotLightBuf light, vec3 pos, vec3 normal, vec3 toEye)
     return BlinnPhong(lightStrength, lightVec, normal, toEye);
 }
 
+vec3 ComputePointLight(PointLightBuf light, vec3 pos, vec3 normal, vec3 toEye)
+{
+    // The vector from the surface to the light.
+    vec3 lightVec = light.uPosition - pos;
+
+    // The distance from surface to light.
+    float d = length(lightVec);
+
+    // Range test.
+    if(d > light.uFalloffEnd)
+        return vec3(0.0f);
+
+    // Normalize the light vector.
+    lightVec /= d;
+
+    // Scale light down by Lambert's cosine law.
+    float ndotl = max(dot(lightVec, normal), 0.0f);
+    vec3 lightStrength = light.uStrength * ndotl;
+
+    // Attenuate light by distance.
+    float att = CalcAttenuation(d, light.uFalloffStart, light.uFalloffEnd);
+    lightStrength *= att;
+
+    return BlinnPhong(lightStrength, lightVec, normal, toEye);
+}
+
 void main()
 {
 #ifdef IS_WIREFRAME
@@ -145,6 +180,11 @@ void main()
 #ifdef USE_SPOT_LIGHT
     lightResult += shadowFactor * ComputeSpotLight(Frame.uSpotLight, vPositionW, normalizedNormalW, toEyeW);
 #endif // USE_SPOT_LIGHT
+
+#ifdef USE_POINT_LIGHT
+    lightResult += shadowFactor * ComputePointLight(Frame.uPointLights[0], vPositionW, normalizedNormalW, toEyeW);
+    lightResult += shadowFactor * ComputePointLight(Frame.uPointLights[1], vPositionW, normalizedNormalW, toEyeW);
+#endif // USE_POINT_LIGHT
 
     fFragColor = ambient + vec4(lightResult.x, lightResult.y, lightResult.z, 0.0f);
     

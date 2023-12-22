@@ -295,6 +295,9 @@ bool DuckDemoGame::OnInit()
     const std::string useSpotLight = "USE_SPOT_LIGHT";
     //shaderc_compile_options_add_macro_definition(compileOptions, useSpotLight.c_str(), static_cast<size_t>(useSpotLight.size()), nullptr, 0);
 
+    const std::string usePointLight = "USE_POINT_LIGHT";
+    //shaderc_compile_options_add_macro_definition(compileOptions, usePointLight.c_str(), static_cast<size_t>(usePointLight.size()), nullptr, 0);
+
     result = CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &m_fragmentShader, compileOptions);
     if (result != VK_SUCCESS)
     {
@@ -744,6 +747,16 @@ void DuckDemoGame::UpdateFrameBuffer()
     frameBuf.uSpotLight.uFalloffStart = 200.0f;
     frameBuf.uSpotLight.uFalloffEnd = 300.0f;
     frameBuf.uSpotLight.uSpotPower = 80.0f;
+
+    frameBuf.uPointLights[0].uStrength = glm::vec3(1.0f, 0.0f, 0.0f);
+    frameBuf.uPointLights[0].uPosition = glm::vec3(25.0f, -180.0f, -25.0f);
+    frameBuf.uPointLights[0].uFalloffStart = 30.0f;
+    frameBuf.uPointLights[0].uFalloffEnd = 50.0f;
+
+    frameBuf.uPointLights[1].uStrength = glm::vec3(0.0f, 1.0f, 0.0f);
+    frameBuf.uPointLights[1].uPosition = glm::vec3(-25.0f, -100.0f, -25.0f);
+    frameBuf.uPointLights[1].uFalloffStart = 30.0f;
+    frameBuf.uPointLights[1].uFalloffEnd = 50.0f;
 
     FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
 }
