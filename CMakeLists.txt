@@ -27,6 +27,17 @@ set(vdd-src
 
 include_directories(SYSTEM external/glm)
 
+include_directories("external/imgui")
+include_directories("external/imgui/backends")
+set(vdd-src ${vdd-src}
+    "external/imgui/imgui.cpp"
+    "external/imgui/imgui_draw.cpp"
+    "external/imgui/imgui_widgets.cpp"
+    "external/imgui/imgui_tables.cpp"
+    "external/imgui/backends/imgui_impl_vulkan.cpp"
+    "external/imgui/backends/imgui_impl_sdl2.cpp"
+)
+
 if (${CMAKE_C_COMPILER_ID} STREQUAL "MSVC")
     add_executable(VulkanDuckDemo WIN32 ${vdd-src})
 else()
