@@ -47,6 +47,8 @@ protected:
     VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
     void FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize, VkDeviceSize offset = 0);
     int32_t FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const;
+    // this will take the size and make sure it will alighn with uniform buffer alightment rules of the gpu
+    VkDeviceSize CalculateUniformBufferSize(const std::size_t size) const;
 
     VkDevice m_vulkanDevice = VK_NULL_HANDLE;
     VkFormat m_vulkanSwapchainPixelFormat = VK_FORMAT_UNDEFINED;
@@ -88,6 +90,7 @@ private:
     shaderc_compiler_t m_shaderCompiler = nullptr;
     VkImage m_vulkanDepthStencilImage = VK_NULL_HANDLE;
     VkDeviceMemory m_vulkanDepthStencilImageMemory = VK_NULL_HANDLE;
+    VkDeviceSize m_minUniformBufferOffsetAlignment = 0;
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;

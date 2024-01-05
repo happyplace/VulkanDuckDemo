@@ -163,7 +163,7 @@ bool DuckDemoGame::OnInit()
     }
 
     DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanFrameBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(ObjectBuf) * 2),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(CalculateUniformBufferSize(sizeof(ObjectBuf)) * 2),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
 
     VkDescriptorSetLayoutBinding frameBufDescriptorSetLayoutBinding;
     frameBufDescriptorSetLayoutBinding.binding = 0;
@@ -551,7 +551,7 @@ bool DuckDemoGame::OnInit()
         objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
         objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
         objectBuf.uRoughness = 0.2f;
-        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), sizeof(ObjectBuf) * 0);
+        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0);
     }
 
     {
@@ -565,7 +565,7 @@ bool DuckDemoGame::OnInit()
         objectBuf.uDiffuseAlbedo = glm::vec4(0.930f, 0.530f, 0.823f, 1.0f);
         objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
         objectBuf.uRoughness = 0.2f;
-        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), sizeof(ObjectBuf) * 1);
+        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), CalculateUniformBufferSize(sizeof(ObjectBuf)) * 1);
     }
 
     m_cameraRotationX = 0.0f;
@@ -803,7 +803,7 @@ void DuckDemoGame::OnRender()
 
     // duck
     {
-        uint32_t dynamicOffsets = sizeof(ObjectBuf) * 0;
+        uint32_t dynamicOffsets = CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0;
         vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
 
         const VkDeviceSize vertexOffset = 0;
@@ -815,7 +815,7 @@ void DuckDemoGame::OnRender()
 
     // floor
     {
-        uint32_t dynamicOffsets = sizeof(ObjectBuf) * 1;
+        uint32_t dynamicOffsets = CalculateUniformBufferSize(sizeof(ObjectBuf)) * 1;
         vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
 
         const VkDeviceSize vertexOffset = 0;

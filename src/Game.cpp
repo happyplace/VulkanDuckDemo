@@ -470,6 +470,10 @@ bool Game::InitVulkanDevice()
     std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
     DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(m_vulkanPhysicalDevice, nullptr, &deviceExtensionCount, deviceExtensions.data()));
 
+    VkPhysicalDeviceProperties physicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(m_vulkanPhysicalDevice, &physicalDeviceProperties);
+    m_minUniformBufferOffsetAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+
     std::vector<const char*> requiredExtensionNames;
     requiredExtensionNames.push_back("VK_KHR_swapchain");
 
@@ -1063,4 +1067,9 @@ bool Game::InitVulkanDepthStencilImage()
     }
 
     return true;
+}
+
+VkDeviceSize Game::CalculateUniformBufferSize(const std::size_t size) const
+{
+    return m_minUniformBufferOffsetAlignment * static_cast<VkDeviceSize>(ceil(static_cast<float>(size) / m_minUniformBufferOffsetAlignment));
 }
