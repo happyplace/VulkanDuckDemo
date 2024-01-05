@@ -335,7 +335,7 @@ bool Game::InitVulkanInstance()
     applicationInfo.pEngineName = "Vulkan Duck Demo Engine";
     applicationInfo.applicationVersion = VK_MAKE_API_VERSION(1, 0, 0, 0);
     applicationInfo.engineVersion = VK_MAKE_API_VERSION(1, 0, 0, 0);
-    applicationInfo.apiVersion = VK_VERSION_1_0;
+    applicationInfo.apiVersion = VK_API_VERSION_1_0;
 
     std::vector<const char*> layerNames;
 #ifdef DUCK_DEMO_VULKAN_DEBUG
