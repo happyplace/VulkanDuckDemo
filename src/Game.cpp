@@ -369,7 +369,14 @@ bool Game::InitVulkanInstance()
 #endif // DUCK_DEMO_VULKAN_PORTABILITY
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
-    activeExtensionNames.push_back("VK_EXT_debug_report");
+    for (const VkExtensionProperties& extensionProperties : instanceExtensions)
+    {
+        if (strcmp(extensionProperties.extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME) == 0)
+        {
+            activeExtensionNames.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+            break;
+        }
+    }
 #endif // DUCK_DEMO_VULKAN_DEBUG
 
     // check that requested extensions are actually supported
