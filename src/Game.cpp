@@ -1288,9 +1288,7 @@ void Game::RenderImGui()
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    ImGui::Begin("test");
-    ImGui::Text("Andrew was here");
-    ImGui::End();
+    OnImGui();
 
     ImGui::Render();
     ImDrawData* drawData = ImGui::GetDrawData();

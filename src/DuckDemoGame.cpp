@@ -4,6 +4,7 @@
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/transform.hpp"
 #include "glm/gtx/euler_angles.hpp"
+#include "imgui.h"
 
 #include "meshloader/MeshLoader.h"
 
@@ -828,4 +829,11 @@ void DuckDemoGame::OnRender()
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
 
     RenderImGui();
+}
+
+void DuckDemoGame::OnImGui()
+{
+    ImGui::Begin("test");
+    ImGui::Text("Andrew was here");
+    ImGui::End();
 }

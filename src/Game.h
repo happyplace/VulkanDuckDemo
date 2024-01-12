@@ -42,6 +42,7 @@ protected:
     virtual void OnResize() = 0;
     virtual void OnUpdate(const GameTimer& gameTimer) = 0;
     virtual void OnRender() = 0;
+    virtual void OnImGui() = 0;
 
     void RenderImGui();
 
