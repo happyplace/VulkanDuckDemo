@@ -43,6 +43,8 @@ protected:
     virtual void OnUpdate(const GameTimer& gameTimer) = 0;
     virtual void OnRender() = 0;
 
+    void RenderImGui();
+
     VkResult CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule, const shaderc_compile_options_t compileOptions = nullptr);
     VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
     void FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize, VkDeviceSize offset = 0);
@@ -73,6 +75,9 @@ private:
     bool BeginRender();
     void EndRender();
 
+    bool InitImGui();
+    void ResizeImGui();
+
     bool m_quit = false;
     GameTimer m_gameTimer;
 
@@ -91,6 +96,10 @@ private:
     VkImage m_vulkanDepthStencilImage = VK_NULL_HANDLE;
     VkDeviceMemory m_vulkanDepthStencilImageMemory = VK_NULL_HANDLE;
     VkDeviceSize m_minUniformBufferOffsetAlignment = 0;
+    uint32_t m_vulkanSwapChainImageCount = 0;
+    VkDescriptorPool m_imguiDescriptorPool = VK_NULL_HANDLE;
+    VkRenderPass m_imguiRenderPass = VK_NULL_HANDLE;
+    std::vector<VkFramebuffer> m_imguiFrameBuffers;
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;

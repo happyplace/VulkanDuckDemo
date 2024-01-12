@@ -1,6 +1,11 @@
 #include "Game.h"
 
+#include <array>
+
 #include <SDL_vulkan.h>
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_vulkan.h"
 
 #include "DuckDemoUtils.h"
 
@@ -65,6 +70,25 @@ Game::~Game()
         vkDestroyDebugReportCallbackEXT(m_instance, m_debugReportCallbackExt, s_allocator);
     }
 #endif // DUCK_DEMO_VULKAN_DEBUG
+
+    for (VkFramebuffer frameBuffer : m_imguiFrameBuffers)
+    {
+        vkDestroyFramebuffer(m_vulkanDevice, frameBuffer, s_allocator);
+    }
+
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    if (m_imguiRenderPass)
+    {
+        vkDestroyRenderPass(m_vulkanDevice, m_imguiRenderPass, s_allocator);
+    }
+
+    if (m_imguiDescriptorPool)
+    {
+        vkDestroyDescriptorPool(m_vulkanDevice, m_imguiDescriptorPool, s_allocator);
+    }
 
     shaderc_compiler_release(m_shaderCompiler);
 
@@ -183,6 +207,11 @@ int Game::Run(int /*argc*/, char** /*argv*/)
         return 1;
     }
 
+    if (!InitImGui())
+    {
+        return 1;
+    }
+
     if (!OnInit())
     {
         return 1;
@@ -196,6 +225,7 @@ int Game::Run(int /*argc*/, char** /*argv*/)
         SDL_Event sdlEvent;
         while (SDL_PollEvent(&sdlEvent) != 0)
         {
+            ImGui_ImplSDL2_ProcessEvent(&sdlEvent);
             if (sdlEvent.type == SDL_QUIT)
             {
                 m_quit = true;
@@ -247,6 +277,8 @@ void Game::Resize(int32_t width /*= -1*/, int32_t height /*= -1*/)
     vkDeviceWaitIdle(m_vulkanDevice);
 
     InitVulkanSwapChain(width, height);
+
+    ResizeImGui();
 
     OnResize();
 }
@@ -397,7 +429,19 @@ bool Game::InitVulkanInstance()
     instanceInfo.enabledExtensionCount = static_cast<uint32_t>(activeExtensionNames.size());
     instanceInfo.ppEnabledExtensionNames = activeExtensionNames.data();
 
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateInstance(&instanceInfo, s_allocator, &m_instance));
+    VkResult result = vkCreateInstance(&instanceInfo, s_allocator, &m_instance);
+    if (result == VK_ERROR_LAYER_NOT_PRESENT)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+    }
+    else if (result == VK_ERROR_EXTENSION_NOT_PRESENT)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+    }
+    else
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+    }
 
     if (!SDL_Vulkan_CreateSurface(m_window, m_instance, &m_vulkanSurface))
     {
@@ -641,7 +685,7 @@ bool Game::InitVulkanSwapChain(const int32_t width, const int32_t height)
 
     VkPresentModeKHR swapChainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
-    uint32_t swapChainImageCount = std::max(1u, surfaceCapabilities.minImageCount);
+    m_vulkanSwapChainImageCount = std::max(1u, surfaceCapabilities.minImageCount);
 
     VkSurfaceTransformFlagBitsKHR preTransform;
     if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
@@ -678,7 +722,7 @@ bool Game::InitVulkanSwapChain(const int32_t width, const int32_t height)
     swapchainCreateInfo.pNext = nullptr;
     swapchainCreateInfo.flags = 0;
     swapchainCreateInfo.surface = m_vulkanSurface;
-    swapchainCreateInfo.minImageCount = swapChainImageCount;
+    swapchainCreateInfo.minImageCount = m_vulkanSwapChainImageCount;
     swapchainCreateInfo.imageFormat = selectedSurfaceFormat.format;
     swapchainCreateInfo.imageColorSpace = selectedSurfaceFormat.colorSpace;
     swapchainCreateInfo.imageExtent.width = swapChainSize.width;
@@ -715,12 +759,12 @@ bool Game::InitVulkanSwapChain(const int32_t width, const int32_t height)
     m_vulkanSwapchainHeight = swapChainSize.height;
     m_vulkanSwapchainPixelFormat = selectedSurfaceFormat.format;
 
-    DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, m_vulkanSwapchain, &swapChainImageCount, nullptr));
+    DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, m_vulkanSwapchain, &m_vulkanSwapChainImageCount, nullptr));
 
-    std::vector<VkImage> swapchainImages(swapChainImageCount);
-    DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, m_vulkanSwapchain, &swapChainImageCount, swapchainImages.data()));
+    std::vector<VkImage> swapchainImages(m_vulkanSwapChainImageCount);
+    DUCK_DEMO_VULKAN_ASSERT(vkGetSwapchainImagesKHR(m_vulkanDevice, m_vulkanSwapchain, &m_vulkanSwapChainImageCount, swapchainImages.data()));
 
-    for (uint32_t i = 0; i < swapChainImageCount; ++i)
+    for (uint32_t i = 0; i < m_vulkanSwapChainImageCount; ++i)
     {
         VkImageViewCreateInfo imageViewCreateInfo;
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1079,4 +1123,183 @@ bool Game::InitVulkanDepthStencilImage()
 VkDeviceSize Game::CalculateUniformBufferSize(const std::size_t size) const
 {
     return m_minUniformBufferOffsetAlignment * static_cast<VkDeviceSize>(ceil(static_cast<float>(size) / m_minUniformBufferOffsetAlignment));
+}
+
+void ImGuiInitAssert(VkResult result)
+{
+    DUCK_DEMO_VULKAN_ASSERT(result);
+}
+
+bool Game::InitImGui()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    ImGui_ImplSDL2_InitForVulkan(m_window);
+
+    VkDescriptorPoolSize pool_sizes[] =
+    {
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+    };
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1;
+    pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+    VkResult result = vkCreateDescriptorPool(m_vulkanDevice, &pool_info, s_allocator, &m_imguiDescriptorPool);
+    if (result != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return false;
+    }
+
+    {
+        VkAttachmentDescription attachment = {};
+        attachment.format = m_vulkanSwapchainPixelFormat;
+        attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; /*true ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;*/
+        attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        VkAttachmentReference color_attachment = {};
+        color_attachment.attachment = 0;
+        color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkSubpassDescription subpass = {};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &color_attachment;
+        VkSubpassDependency dependency = {};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VkRenderPassCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        info.attachmentCount = 1;
+        info.pAttachments = &attachment;
+        info.subpassCount = 1;
+        info.pSubpasses = &subpass;
+        info.dependencyCount = 1;
+        info.pDependencies = &dependency;
+        result = vkCreateRenderPass(m_vulkanDevice, &info, s_allocator, &m_imguiRenderPass);
+        if (result != VK_SUCCESS)
+        {
+            DUCK_DEMO_VULKAN_ASSERT(result);
+            return false;
+        }
+    }
+
+    ImGui_ImplVulkan_InitInfo initInfo;
+    memset(&initInfo, 0, sizeof(initInfo));
+    initInfo.Instance = m_instance;
+    initInfo.PhysicalDevice = m_vulkanPhysicalDevice;
+    initInfo.Device = m_vulkanDevice;
+    initInfo.QueueFamily = m_vulkanGraphicsQueueIndex;
+    initInfo.Queue = m_vulkanQueue;
+    initInfo.PipelineCache = VK_NULL_HANDLE;
+    initInfo.DescriptorPool = m_imguiDescriptorPool;
+    initInfo.Subpass = 0;
+    initInfo.MinImageCount = m_vulkanSwapChainImageCount;
+    initInfo.ImageCount = m_vulkanSwapChainImageCount;
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    initInfo.Allocator = s_allocator;
+    initInfo.CheckVkResultFn = ImGuiInitAssert;
+    initInfo.UseDynamicRendering = false;
+    if (!ImGui_ImplVulkan_Init(&initInfo, m_imguiRenderPass))
+    {
+        DUCK_DEMO_ASSERT(false);
+        return false;
+    }
+
+    // Load Fonts
+    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
+    // - Read 'docs/FONTS.md' for more instructions and details.
+    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+    //io.Fonts->AddFontDefault();
+    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
+    //IM_ASSERT(font != nullptr);
+
+    return true;
+}
+
+void Game::ResizeImGui()
+{
+    for (VkFramebuffer frameBuffer : m_imguiFrameBuffers)
+    {
+        vkDestroyFramebuffer(m_vulkanDevice, frameBuffer, s_allocator);
+    }
+    
+    m_imguiFrameBuffers.clear();
+
+    {
+        VkImageView attachment[1];
+        VkFramebufferCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        info.renderPass = m_imguiRenderPass;
+        info.attachmentCount = 1;
+        info.pAttachments = attachment;
+        info.width = m_vulkanSwapchainWidth;
+        info.height = m_vulkanSwapchainHeight;
+        info.layers = 1;
+        for (uint32_t i = 0; i < m_vulkanSwapChainImageCount; i++)
+        {
+            attachment[0] = m_vulkanSwapchainImageViews[i];
+
+            VkFramebuffer framebuffer;
+            DUCK_DEMO_VULKAN_ASSERT(vkCreateFramebuffer(m_vulkanDevice, &info, s_allocator, &framebuffer));
+
+            m_imguiFrameBuffers.push_back(framebuffer);
+        }
+    }
+
+    ImGui_ImplVulkan_SetMinImageCount(m_vulkanSwapChainImageCount);
+}
+
+void Game::RenderImGui()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::Begin("test");
+    ImGui::Text("Andrew was here");
+    ImGui::End();
+
+    ImGui::Render();
+    ImDrawData* drawData = ImGui::GetDrawData();
+
+    {
+        VkRenderPassBeginInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        info.renderPass = m_imguiRenderPass;
+        info.framebuffer = m_imguiFrameBuffers[m_currentSwapchainImageIndex];
+        info.renderArea.extent.width = m_vulkanSwapchainWidth;
+        info.renderArea.extent.height = m_vulkanSwapchainHeight;
+        info.clearValueCount = 0;
+        info.pClearValues = nullptr;
+        vkCmdBeginRenderPass(m_vulkanPrimaryCommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    ImGui_ImplVulkan_RenderDrawData(drawData, m_vulkanPrimaryCommandBuffer);
+
+    vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
 }

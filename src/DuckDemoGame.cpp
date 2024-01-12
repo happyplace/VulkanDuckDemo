@@ -826,4 +826,6 @@ void DuckDemoGame::OnRender()
     }
 
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
+
+    RenderImGui();
 }
