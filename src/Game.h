@@ -69,6 +69,7 @@ private:
     bool InitVulkanSwapChain(const int32_t width, const int32_t height);
     bool InitVulkanGameResources();
     bool InitVulkanDepthStencilImage();
+    void FreeVulkanDepthStencilImage();
 
     void Update();
     void Resize(int32_t width = -1, int32_t height = -1);

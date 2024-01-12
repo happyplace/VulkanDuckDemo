@@ -92,20 +92,7 @@ Game::~Game()
 
     shaderc_compiler_release(m_shaderCompiler);
 
-    if (m_vulkanDepthStencilImageView)
-    {
-        vkDestroyImageView(m_vulkanDevice, m_vulkanDepthStencilImageView, s_allocator);
-    }
-
-    if (m_vulkanDepthStencilImage)
-    {
-        vkDestroyImage(m_vulkanDevice, m_vulkanDepthStencilImage, s_allocator);
-    }
-
-    if (m_vulkanDepthStencilImageMemory)
-    {
-        vkFreeMemory(m_vulkanDevice, m_vulkanDepthStencilImageMemory, s_allocator);
-    }
+    FreeVulkanDepthStencilImage();
 
     if (m_vulkanPrimaryCommandBuffer)
     {
@@ -277,6 +264,9 @@ void Game::Resize(int32_t width /*= -1*/, int32_t height /*= -1*/)
     vkDeviceWaitIdle(m_vulkanDevice);
 
     InitVulkanSwapChain(width, height);
+
+    FreeVulkanDepthStencilImage();
+    InitVulkanDepthStencilImage();
 
     ResizeImGui();
 
@@ -1120,6 +1110,24 @@ bool Game::InitVulkanDepthStencilImage()
     return true;
 }
 
+void Game::FreeVulkanDepthStencilImage()
+{
+    if (m_vulkanDepthStencilImageView)
+    {
+        vkDestroyImageView(m_vulkanDevice, m_vulkanDepthStencilImageView, s_allocator);
+    }
+
+    if (m_vulkanDepthStencilImage)
+    {
+        vkDestroyImage(m_vulkanDevice, m_vulkanDepthStencilImage, s_allocator);
+    }
+
+    if (m_vulkanDepthStencilImageMemory)
+    {
+        vkFreeMemory(m_vulkanDevice, m_vulkanDepthStencilImageMemory, s_allocator);
+    }
+}
+
 VkDeviceSize Game::CalculateUniformBufferSize(const std::size_t size) const
 {
     return m_minUniformBufferOffsetAlignment * static_cast<VkDeviceSize>(ceil(static_cast<float>(size) / m_minUniformBufferOffsetAlignment));
@@ -1164,7 +1172,7 @@ bool Game::InitImGui()
         VkAttachmentDescription attachment = {};
         attachment.format = m_vulkanSwapchainPixelFormat;
         attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; /*true ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;*/
+        attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -1222,6 +1230,8 @@ bool Game::InitImGui()
         return false;
     }
 
+    ImGui_ImplVulkan_SetMinImageCount(m_vulkanSwapChainImageCount);
+
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
     // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
@@ -1270,8 +1280,6 @@ void Game::ResizeImGui()
             m_imguiFrameBuffers.push_back(framebuffer);
         }
     }
-
-    ImGui_ImplVulkan_SetMinImageCount(m_vulkanSwapChainImageCount);
 }
 
 void Game::RenderImGui()
