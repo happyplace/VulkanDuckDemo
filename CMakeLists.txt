@@ -27,6 +27,8 @@ set(vdd-src
 
 include_directories(SYSTEM external/glm)
 
+include_directories(SYSTEM external/stb)
+
 include_directories("external/imgui")
 include_directories("external/imgui/backends")
 set(vdd-src ${vdd-src}
