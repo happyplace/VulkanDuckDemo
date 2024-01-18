@@ -23,7 +23,7 @@ bool AssimpLoader::Load(const void* buffer, const size_t bufferSize, Mesh& outMe
 {
     Importer importer;
 
-    const aiScene* scene = importer.ReadFileFromMemory(buffer, bufferSize, aiProcessPreset_TargetRealtime_Quality);
+    const aiScene* scene = importer.ReadFileFromMemory(buffer, bufferSize, aiProcessPreset_TargetRealtime_Quality | aiProcess_ConvertToLeftHanded);
     if (scene == nullptr)
     {
         //std::string error = importer.GetErrorString();
