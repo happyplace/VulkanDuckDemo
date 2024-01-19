@@ -68,6 +68,7 @@ protected:
     int32_t FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const;
     // this will take the size and make sure it will alighn with uniform buffer alightment rules of the gpu
     VkDeviceSize CalculateUniformBufferSize(const std::size_t size) const;
+    VkResult CreateVulkanTexture(const std::string path, VulkanTexture& outVulkanTexture);
 
     VkDevice m_vulkanDevice = VK_NULL_HANDLE;
     VkFormat m_vulkanSwapchainPixelFormat = VK_FORMAT_UNDEFINED;

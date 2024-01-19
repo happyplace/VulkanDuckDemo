@@ -6,6 +6,8 @@
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_vulkan.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include "DuckDemoUtils.h"
 
@@ -1381,4 +1383,206 @@ void Game::RenderImGui()
     ImGui_ImplVulkan_RenderDrawData(drawData, m_vulkanPrimaryCommandBuffer);
 
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
+}
+
+VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVulkanTexture)
+{
+    outVulkanTexture.Reset();
+
+    std::unique_ptr<DuckDemoFile> diffuseTexture = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/Kachujin_diffuse.png");
+    if (diffuseTexture == nullptr)
+    {
+        DUCK_DEMO_ASSERT(false);
+        return VK_ERROR_UNKNOWN;
+    }
+
+    int width;
+    int height;
+    int channelsInFile;
+
+    stbi_uc* imageData = stbi_load_from_memory(
+        reinterpret_cast<stbi_uc*>(diffuseTexture->buffer.get()),
+        static_cast<int>(diffuseTexture->bufferSize), 
+        &width, 
+        &height, 
+        &channelsInFile, 
+        STBI_rgb_alpha);
+
+    if (imageData == nullptr)
+    {
+        DUCK_DEMO_ASSERT(false);
+        return VK_ERROR_UNKNOWN;
+    }
+
+    DUCK_DEMO_ASSERT(width != 0);
+    DUCK_DEMO_ASSERT(height != 0);
+    DUCK_DEMO_ASSERT(channelsInFile != 0);
+
+    constexpr VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory stagingDeviceMemory = VK_NULL_HANDLE;
+
+    VkBufferCreateInfo bufferCreateInfo;
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.pNext = nullptr;
+    bufferCreateInfo.flags = 0;
+    bufferCreateInfo.size = static_cast<VkDeviceSize>(width * height * channelsInFile);
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+    VkResult result = vkCreateBuffer(m_vulkanDevice, &bufferCreateInfo, s_allocator, &stagingBuffer);
+    if (result != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return result;
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetBufferMemoryRequirements(m_vulkanDevice, stagingBuffer, &memoryRequirements);
+
+    VkMemoryAllocateInfo memoryAllocateInfo;
+    memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryAllocateInfo.pNext = nullptr;
+    memoryAllocateInfo.allocationSize = memoryRequirements.size;
+    memoryAllocateInfo.memoryTypeIndex = FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryRequirements.memoryTypeBits);
+
+    DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &stagingDeviceMemory));
+    DUCK_DEMO_VULKAN_ASSERT(vkBindBufferMemory(m_vulkanDevice, stagingBuffer, stagingDeviceMemory, 0));
+
+    uint8_t *mappedData = nullptr;
+    result = vkMapMemory(m_vulkanDevice, stagingDeviceMemory, 0, memoryRequirements.size, 0, reinterpret_cast<void**>(&mappedData));
+    DUCK_DEMO_VULKAN_ASSERT(result);
+    memcpy(mappedData, imageData, static_cast<size_t>(bufferCreateInfo.size));
+    vkUnmapMemory(m_vulkanDevice, stagingDeviceMemory);
+
+    VkImageCreateInfo imageCreateInfo;
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.pNext = nullptr;
+    imageCreateInfo.flags = 0;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.format = format;
+    imageCreateInfo.extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1 };
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.queueFamilyIndexCount = 0;
+    imageCreateInfo.pQueueFamilyIndices = nullptr;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateImage(m_vulkanDevice, &imageCreateInfo, s_allocator, &outVulkanTexture.m_image));
+    
+    vkGetImageMemoryRequirements(m_vulkanDevice, outVulkanTexture.m_image, &memoryRequirements);
+    memoryAllocateInfo.allocationSize = memoryRequirements.size;
+    memoryAllocateInfo.memoryTypeIndex = FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryRequirements.memoryTypeBits);
+
+    DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &outVulkanTexture.m_deviceMemory));
+    DUCK_DEMO_VULKAN_ASSERT(vkBindImageMemory(m_vulkanDevice, outVulkanTexture.m_image, outVulkanTexture.m_deviceMemory, 0));
+
+    DUCK_DEMO_VULKAN_ASSERT(vkResetCommandPool(m_vulkanDevice, m_vulkanTempCommandPool, 0));
+
+    VkCommandBufferBeginInfo commandBufferBeginInfo;
+    commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    commandBufferBeginInfo.pNext = nullptr;
+    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    commandBufferBeginInfo.pInheritanceInfo = nullptr;
+    DUCK_DEMO_VULKAN_ASSERT(vkBeginCommandBuffer(m_vulkanTempCommandBuffer, &commandBufferBeginInfo));
+
+    VkImageSubresourceRange imageSubresourceRange;
+    imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageSubresourceRange.baseMipLevel = 0;
+    imageSubresourceRange.levelCount = imageCreateInfo.mipLevels;
+    imageSubresourceRange.baseArrayLayer = 0;
+    imageSubresourceRange.layerCount = 1;
+
+    VkImageMemoryBarrier imageMemoryBarrier;
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.pNext = nullptr;
+    imageMemoryBarrier.srcAccessMask = 0;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.image = outVulkanTexture.m_image;
+    imageMemoryBarrier.subresourceRange = imageSubresourceRange;
+
+    std::array<VkBufferImageCopy, 1> bufferImageCopies;
+    bufferImageCopies[0].bufferOffset = 0;
+    bufferImageCopies[0].bufferRowLength = 0;
+    bufferImageCopies[0].bufferImageHeight = 0;
+    bufferImageCopies[0].imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    bufferImageCopies[0].imageSubresource.mipLevel = 0;
+    bufferImageCopies[0].imageSubresource.baseArrayLayer = 0;
+    bufferImageCopies[0].imageSubresource.layerCount = 1;
+    bufferImageCopies[0].imageOffset.x = 0;
+    bufferImageCopies[0].imageOffset.y = 0;
+    bufferImageCopies[0].imageOffset.z = 0;
+    bufferImageCopies[0].imageExtent.width = static_cast<uint32_t>(width);
+    bufferImageCopies[0].imageExtent.height = static_cast<uint32_t>(height);
+    bufferImageCopies[0].imageExtent.depth = 1;
+
+    vkCmdPipelineBarrier(m_vulkanTempCommandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+
+    vkCmdCopyBufferToImage(
+        m_vulkanTempCommandBuffer, 
+        stagingBuffer, 
+        outVulkanTexture.m_image, 
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+        static_cast<uint32_t>(bufferImageCopies.size()), 
+        bufferImageCopies.data());
+
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.pNext = nullptr;
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageMemoryBarrier.srcQueueFamilyIndex = 0;
+    imageMemoryBarrier.dstQueueFamilyIndex = 0;
+    imageMemoryBarrier.image = outVulkanTexture.m_image;
+    imageMemoryBarrier.subresourceRange = imageSubresourceRange;
+
+    vkCmdPipelineBarrier(m_vulkanTempCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+
+    DUCK_DEMO_VULKAN_ASSERT(vkEndCommandBuffer(m_vulkanTempCommandBuffer));
+
+    VkSubmitInfo submitInfo;
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pNext = nullptr;
+    submitInfo.waitSemaphoreCount = 0;
+    submitInfo.pWaitSemaphores = nullptr;
+    submitInfo.pWaitDstStageMask = nullptr;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_vulkanTempCommandBuffer;
+    submitInfo.signalSemaphoreCount = 0;
+    submitInfo.pSignalSemaphores = nullptr;
+    DUCK_DEMO_VULKAN_ASSERT(vkQueueSubmit(m_vulkanQueue, 1, &submitInfo, m_vulkanTempFence));
+
+    // we don't want to do any sync so just wait for the fence to complete
+    DUCK_DEMO_VULKAN_ASSERT(vkWaitForFences(m_vulkanDevice, 1, &m_vulkanTempFence, VK_TRUE, UINT64_MAX));
+    vkResetFences(m_vulkanDevice, 1, &m_vulkanTempFence);
+
+    vkFreeMemory(m_vulkanDevice, stagingDeviceMemory, s_allocator);
+    vkDestroyBuffer(m_vulkanDevice, stagingBuffer, s_allocator);
+
+    VkImageViewCreateInfo imageViewCreateInfo;
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.pNext = nullptr;
+    imageViewCreateInfo.flags = 0;
+    imageViewCreateInfo.image = outVulkanTexture.m_image;
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = format;
+    imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = imageCreateInfo.mipLevels;
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateImageView(m_vulkanDevice, &imageViewCreateInfo, s_allocator, &outVulkanTexture.m_imageView));
+
+    return VK_SUCCESS;
 }
