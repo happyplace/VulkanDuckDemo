@@ -52,6 +52,7 @@ struct DUCK_DEMO_ALIGN(16) ObjectBuf
     glm::vec4 uDiffuseAlbedo;
     glm::vec3 uFresnelR0;
     float uRoughness;
+    uint uTextureIndex;
 };
 
 class DuckDemoGame : public Game

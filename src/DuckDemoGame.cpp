@@ -691,6 +691,7 @@ bool DuckDemoGame::OnInit()
         objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
         objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
         objectBuf.uRoughness = 0.2f;
+        objectBuf.uTextureIndex = 0;
         FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0);
     }
 
@@ -705,6 +706,7 @@ bool DuckDemoGame::OnInit()
         objectBuf.uDiffuseAlbedo = glm::vec4(0.930f, 0.530f, 0.823f, 1.0f);
         objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
         objectBuf.uRoughness = 0.2f;
+        objectBuf.uTextureIndex = 1;
         FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), CalculateUniformBufferSize(sizeof(ObjectBuf)) * 1);
     }
 
@@ -940,15 +942,13 @@ void DuckDemoGame::OnRender()
     vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, 1, &m_vulkanDescriptorSets[0], 0, nullptr);
-
     vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 2, 1, &m_vulkanDescriptorSets[2], 0, nullptr);
+    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 3, 1, &m_vulkanDescriptorSets[3], 0, nullptr);
 
     // duck
     {
         uint32_t dynamicOffsets = CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0;
         vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
-
-        vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 3, 1, &m_vulkanDescriptorSets[3], 0, nullptr);
 
         const VkDeviceSize vertexOffset = 0;
         vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanDuckVertexBuffer.m_buffer, &vertexOffset);

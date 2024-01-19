@@ -44,6 +44,7 @@ layout(std140, set = 1, binding = 0) uniform ObjectBuf
     vec4 uDiffuseAlbedo;
     vec3 uFresnelR0;
     float uRoughness;
+    uint uTextureIndex;
 } Object;
 
 layout(location = 0) in vec3 aPosition;

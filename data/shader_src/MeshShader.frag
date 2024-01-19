@@ -39,7 +39,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
 } Frame;
 
 layout(set = 2, binding = 0) uniform sampler samplerColour;
-layout(set = 3, binding = 0) uniform texture2D sampledTexture[];
+layout(set = 3, binding = 0) uniform texture2D sampledTexture[2];
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
 {
@@ -47,6 +47,7 @@ layout(std140, set = 1, binding = 0) uniform ObjectBuf
     vec4 uDiffuseAlbedo;
     vec3 uFresnelR0;
     float uRoughness;
+    uint uTextureIndex;
 } Object;
 
 layout(location = 0) in vec3 vNormalW;
@@ -173,7 +174,7 @@ void main()
     vec3 toEyeW = normalize(Frame.uEyePosW - vPositionW);
 
 #ifdef USE_TEXTURE
-    vec3 rgb = (texture(sampler2D(sampledTexture[0], samplerColour), inUV) * Object.uDiffuseAlbedo).xyz;
+    vec3 rgb = (texture(sampler2D(sampledTexture[Object.uTextureIndex], samplerColour), inUV) * Object.uDiffuseAlbedo).xyz;
 #else
     vec3 rgb = Object.uDiffuseAlbedo.xyz;
 #endif // USE_TEXTURE
