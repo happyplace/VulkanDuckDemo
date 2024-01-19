@@ -1389,7 +1389,7 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
 {
     outVulkanTexture.Reset();
 
-    std::unique_ptr<DuckDemoFile> diffuseTexture = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/Kachujin_diffuse.png");
+    std::unique_ptr<DuckDemoFile> diffuseTexture = DuckDemoUtils::LoadFileFromDisk(path);
     if (diffuseTexture == nullptr)
     {
         DUCK_DEMO_ASSERT(false);
