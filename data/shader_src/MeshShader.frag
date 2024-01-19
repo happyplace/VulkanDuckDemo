@@ -38,7 +38,8 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     PointLightBuf uPointLights[2];
 } Frame;
 
-layout(set = 2, binding = 0) uniform sampler2D samplerColour;
+layout(set = 2, binding = 0) uniform sampler samplerColour;
+layout(set = 3, binding = 0) uniform texture2D sampledTexture;
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
 {
@@ -172,7 +173,7 @@ void main()
     vec3 toEyeW = normalize(Frame.uEyePosW - vPositionW);
 
 #ifdef USE_TEXTURE
-    vec3 rgb = (texture(samplerColour, inUV, 1.0f) * Object.uDiffuseAlbedo).xyz;
+    vec3 rgb = (texture(sampler2D(sampledTexture, samplerColour), inUV) * Object.uDiffuseAlbedo).xyz;
 #else
     vec3 rgb = Object.uDiffuseAlbedo.xyz;
 #endif // USE_TEXTURE

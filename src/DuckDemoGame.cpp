@@ -5,8 +5,6 @@
 #include "glm/gtx/transform.hpp"
 #include "glm/gtx/euler_angles.hpp"
 #include "imgui.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 
 #include "meshloader/MeshLoader.h"
 
@@ -150,210 +148,22 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
+    VkResult result = CreateVulkanTexture("../kachujin_g_rosales/Kachujin_diffuse.png", m_vulkanDuckDiffuseTexture);
+    if (result != VK_SUCCESS)
     {
-        std::unique_ptr<DuckDemoFile> diffuseTexture = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/Kachujin_diffuse.png");
-        if (diffuseTexture == nullptr)
-        {
-            DUCK_DEMO_ASSERT(false);
-            return false;
-        }
-
-        int width;
-        int height;
-        int channelsInFile;
-
-        stbi_uc* imageData = stbi_load_from_memory(
-            reinterpret_cast<stbi_uc*>(diffuseTexture->buffer.get()),
-            static_cast<int>(diffuseTexture->bufferSize), 
-            &width, 
-            &height, 
-            &channelsInFile, 
-            STBI_rgb_alpha);
-
-        if (imageData == nullptr)
-        {
-            DUCK_DEMO_ASSERT(false);
-            return false;
-        }
-
-        DUCK_DEMO_ASSERT(width != 0);
-        DUCK_DEMO_ASSERT(height != 0);
-        DUCK_DEMO_ASSERT(channelsInFile != 0);
-
-        constexpr VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-
-        VkBuffer stagingBuffer = VK_NULL_HANDLE;
-        VkDeviceMemory stagingDeviceMemory = VK_NULL_HANDLE;
-
-        VkBufferCreateInfo bufferCreateInfo;
-        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferCreateInfo.pNext = nullptr;
-        bufferCreateInfo.flags = 0;
-        bufferCreateInfo.size = static_cast<VkDeviceSize>(width * height * channelsInFile);
-        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        bufferCreateInfo.queueFamilyIndexCount = 0;
-        bufferCreateInfo.pQueueFamilyIndices = nullptr;
-        VkResult result = vkCreateBuffer(m_vulkanDevice, &bufferCreateInfo, s_allocator, &stagingBuffer);
-        if (result != VK_SUCCESS)
-        {
-            DUCK_DEMO_VULKAN_ASSERT(result);
-            return false;
-        }
-
-        VkMemoryRequirements memoryRequirements;
-        vkGetBufferMemoryRequirements(m_vulkanDevice, stagingBuffer, &memoryRequirements);
-
-        VkMemoryAllocateInfo memoryAllocateInfo;
-        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memoryAllocateInfo.pNext = nullptr;
-        memoryAllocateInfo.allocationSize = memoryRequirements.size;
-        memoryAllocateInfo.memoryTypeIndex = FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryRequirements.memoryTypeBits);
-
-        DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &stagingDeviceMemory));
-        DUCK_DEMO_VULKAN_ASSERT(vkBindBufferMemory(m_vulkanDevice, stagingBuffer, stagingDeviceMemory, 0));
-
-        uint8_t *mappedData = nullptr;
-        result = vkMapMemory(m_vulkanDevice, stagingDeviceMemory, 0, memoryRequirements.size, 0, reinterpret_cast<void**>(&mappedData));
         DUCK_DEMO_VULKAN_ASSERT(result);
-        memcpy(mappedData, imageData, static_cast<size_t>(bufferCreateInfo.size));
-        vkUnmapMemory(m_vulkanDevice, stagingDeviceMemory);
-
-        VkImageCreateInfo imageCreateInfo;
-        imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageCreateInfo.pNext = nullptr;
-        imageCreateInfo.flags = 0;
-        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format = format;
-        imageCreateInfo.extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1 };
-        imageCreateInfo.mipLevels = 1;
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-        imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageCreateInfo.queueFamilyIndexCount = 0;
-        imageCreateInfo.pQueueFamilyIndices = nullptr;
-        imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        DUCK_DEMO_VULKAN_ASSERT(vkCreateImage(m_vulkanDevice, &imageCreateInfo, s_allocator, &m_vulkanDuckDiffuseTexture.m_image));
-        
-        vkGetImageMemoryRequirements(m_vulkanDevice, m_vulkanDuckDiffuseTexture.m_image, &memoryRequirements);
-        memoryAllocateInfo.allocationSize = memoryRequirements.size;
-        memoryAllocateInfo.memoryTypeIndex = FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryRequirements.memoryTypeBits);
-
-        DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &m_vulkanDuckDiffuseTexture.m_deviceMemory));
-        DUCK_DEMO_VULKAN_ASSERT(vkBindImageMemory(m_vulkanDevice, m_vulkanDuckDiffuseTexture.m_image, m_vulkanDuckDiffuseTexture.m_deviceMemory, 0));
-
-        DUCK_DEMO_VULKAN_ASSERT(vkResetCommandPool(m_vulkanDevice, m_vulkanTempCommandPool, 0));
-
-        VkCommandBufferBeginInfo commandBufferBeginInfo;
-        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        commandBufferBeginInfo.pNext = nullptr;
-        commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        commandBufferBeginInfo.pInheritanceInfo = nullptr;
-        DUCK_DEMO_VULKAN_ASSERT(vkBeginCommandBuffer(m_vulkanTempCommandBuffer, &commandBufferBeginInfo));
-
-        VkImageSubresourceRange imageSubresourceRange;
-        imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageSubresourceRange.baseMipLevel = 0;
-        imageSubresourceRange.levelCount = imageCreateInfo.mipLevels;
-        imageSubresourceRange.baseArrayLayer = 0;
-        imageSubresourceRange.layerCount = 1;
-
-        VkImageMemoryBarrier imageMemoryBarrier;
-        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        imageMemoryBarrier.pNext = nullptr;
-        imageMemoryBarrier.srcAccessMask = 0;
-        imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        imageMemoryBarrier.image = m_vulkanDuckDiffuseTexture.m_image;
-        imageMemoryBarrier.subresourceRange = imageSubresourceRange;
-
-        std::array<VkBufferImageCopy, 1> bufferImageCopies;
-        bufferImageCopies[0].bufferOffset = 0;
-        bufferImageCopies[0].bufferRowLength = 0;
-        bufferImageCopies[0].bufferImageHeight = 0;
-        bufferImageCopies[0].imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        bufferImageCopies[0].imageSubresource.mipLevel = 0;
-        bufferImageCopies[0].imageSubresource.baseArrayLayer = 0;
-        bufferImageCopies[0].imageSubresource.layerCount = 1;
-        bufferImageCopies[0].imageOffset.x = 0;
-        bufferImageCopies[0].imageOffset.y = 0;
-        bufferImageCopies[0].imageOffset.z = 0;
-        bufferImageCopies[0].imageExtent.width = static_cast<uint32_t>(width);
-        bufferImageCopies[0].imageExtent.height = static_cast<uint32_t>(height);
-        bufferImageCopies[0].imageExtent.depth = 1;
-
-        vkCmdPipelineBarrier(m_vulkanTempCommandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-
-        vkCmdCopyBufferToImage(
-            m_vulkanTempCommandBuffer, 
-            stagingBuffer, 
-            m_vulkanDuckDiffuseTexture.m_image, 
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-            static_cast<uint32_t>(bufferImageCopies.size()), 
-            bufferImageCopies.data());
-
-        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        imageMemoryBarrier.pNext = nullptr;
-        imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageMemoryBarrier.srcQueueFamilyIndex = 0;
-        imageMemoryBarrier.dstQueueFamilyIndex = 0;
-        imageMemoryBarrier.image = m_vulkanDuckDiffuseTexture.m_image;
-        imageMemoryBarrier.subresourceRange = imageSubresourceRange;
-
-        vkCmdPipelineBarrier(m_vulkanTempCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-
-        DUCK_DEMO_VULKAN_ASSERT(vkEndCommandBuffer(m_vulkanTempCommandBuffer));
-
-        VkSubmitInfo submitInfo;
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.pNext = nullptr;
-        submitInfo.waitSemaphoreCount = 0;
-        submitInfo.pWaitSemaphores = nullptr;
-        submitInfo.pWaitDstStageMask = nullptr;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_vulkanTempCommandBuffer;
-        submitInfo.signalSemaphoreCount = 0;
-        submitInfo.pSignalSemaphores = nullptr;
-        DUCK_DEMO_VULKAN_ASSERT(vkQueueSubmit(m_vulkanQueue, 1, &submitInfo, m_vulkanTempFence));
-
-        // we don't want to do any sync so just wait for the fence to complete
-        DUCK_DEMO_VULKAN_ASSERT(vkWaitForFences(m_vulkanDevice, 1, &m_vulkanTempFence, VK_TRUE, UINT64_MAX));
-        vkResetFences(m_vulkanDevice, 1, &m_vulkanTempFence);
-
-        vkFreeMemory(m_vulkanDevice, stagingDeviceMemory, s_allocator);
-        vkDestroyBuffer(m_vulkanDevice, stagingBuffer, s_allocator);
-
-        VkImageViewCreateInfo imageViewCreateInfo;
-        imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.pNext = nullptr;
-        imageViewCreateInfo.flags = 0;
-        imageViewCreateInfo.image = m_vulkanDuckDiffuseTexture.m_image;
-        imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewCreateInfo.format = format;
-        imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-        imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-        imageViewCreateInfo.subresourceRange.levelCount = 1;
-        imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-        imageViewCreateInfo.subresourceRange.layerCount = imageCreateInfo.mipLevels;
-        DUCK_DEMO_VULKAN_ASSERT(vkCreateImageView(m_vulkanDevice, &imageViewCreateInfo, s_allocator, &m_vulkanDuckDiffuseTexture.m_imageView));
+        return false;
     }
 
-    std::array<VkDescriptorPoolSize, 3> descriptorPoolSize;
+    std::array<VkDescriptorPoolSize, 4> descriptorPoolSize;
     descriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorPoolSize[0].descriptorCount = 1;
-    descriptorPoolSize[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorPoolSize[2].descriptorCount = 1;
     descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     descriptorPoolSize[1].descriptorCount = 1;
+    descriptorPoolSize[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+    descriptorPoolSize[2].descriptorCount = 1;
+    descriptorPoolSize[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    descriptorPoolSize[3].descriptorCount = 1;
 
     VkPhysicalDeviceFeatures physicalDeviceFeatures;
     vkGetPhysicalDeviceFeatures(m_vulkanPhysicalDevice, &physicalDeviceFeatures);
@@ -398,7 +208,7 @@ bool DuckDemoGame::OnInit()
     descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSize.size());
     descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSize.data();
 
-    VkResult result = vkCreateDescriptorPool(m_vulkanDevice, &descriptorPoolCreateInfo, s_allocator, &m_vulkanDescriptorPool);
+    result = vkCreateDescriptorPool(m_vulkanDevice, &descriptorPoolCreateInfo, s_allocator, &m_vulkanDescriptorPool);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -424,10 +234,17 @@ bool DuckDemoGame::OnInit()
 
     VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBindings;
     samplerDescriptorSetLayoutBindings.binding = 0;
-    samplerDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     samplerDescriptorSetLayoutBindings.descriptorCount = 1;
     samplerDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    samplerDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
+    samplerDescriptorSetLayoutBindings.pImmutableSamplers = &m_vulkanSampler;
+
+    VkDescriptorSetLayoutBinding sampledImageDescriptorSetLayoutBindings;
+    sampledImageDescriptorSetLayoutBindings.binding = 0;
+    sampledImageDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    sampledImageDescriptorSetLayoutBindings.descriptorCount = 1;
+    sampledImageDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    sampledImageDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo frameBufDescriptorSetLayoutCreateInfo;
     frameBufDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -450,6 +267,13 @@ bool DuckDemoGame::OnInit()
     samplerDescriptorSetLayoutCreateInfo.bindingCount = 1;
     samplerDescriptorSetLayoutCreateInfo.pBindings = &samplerDescriptorSetLayoutBindings;
 
+    VkDescriptorSetLayoutCreateInfo sampledImageDescriptorSetLayoutCreateInfo;
+    sampledImageDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    sampledImageDescriptorSetLayoutCreateInfo.pNext = nullptr;
+    sampledImageDescriptorSetLayoutCreateInfo.flags = 0;
+    sampledImageDescriptorSetLayoutCreateInfo.bindingCount = 1;
+    sampledImageDescriptorSetLayoutCreateInfo.pBindings = &sampledImageDescriptorSetLayoutBindings;
+
     result = vkCreateDescriptorSetLayout(m_vulkanDevice, &frameBufDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[0]);
     if (result != VK_SUCCESS)
     {
@@ -465,6 +289,13 @@ bool DuckDemoGame::OnInit()
     }
 
     result = vkCreateDescriptorSetLayout(m_vulkanDevice, &samplerDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[2]);
+    if (result != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return false;
+    }
+
+    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &sampledImageDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[3]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -492,8 +323,13 @@ bool DuckDemoGame::OnInit()
 
     VkDescriptorImageInfo samplerDescriptorImageInfo;
     samplerDescriptorImageInfo.sampler = m_vulkanSampler;
-    samplerDescriptorImageInfo.imageView = m_vulkanDuckDiffuseTexture.m_imageView;
+    samplerDescriptorImageInfo.imageView = nullptr;
     samplerDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDescriptorImageInfo sampledImageDescriptorImageInfo;
+    sampledImageDescriptorImageInfo.sampler = nullptr;
+    sampledImageDescriptorImageInfo.imageView = m_vulkanDuckDiffuseTexture.m_imageView;
+    sampledImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet frameBufWriteDescriptorSet;
     frameBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -519,21 +355,34 @@ bool DuckDemoGame::OnInit()
     objectBufWriteDescriptorSet.pImageInfo = nullptr;
     objectBufWriteDescriptorSet.pTexelBufferView = nullptr;
 
-    VkWriteDescriptorSet samplerWriteDescriptorSet;
-    samplerWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    samplerWriteDescriptorSet.pNext = nullptr;
-    samplerWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[2];
-    samplerWriteDescriptorSet.dstBinding = 0;
-    samplerWriteDescriptorSet.dstArrayElement = 0;
-    samplerWriteDescriptorSet.descriptorCount = 1;
-    samplerWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    samplerWriteDescriptorSet.pBufferInfo = nullptr;
-    samplerWriteDescriptorSet.pImageInfo = &samplerDescriptorImageInfo;
-    samplerWriteDescriptorSet.pTexelBufferView = nullptr;
+    // VkWriteDescriptorSet samplerWriteDescriptorSet;
+    // samplerWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // samplerWriteDescriptorSet.pNext = nullptr;
+    // samplerWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[2];
+    // samplerWriteDescriptorSet.dstBinding = 0;
+    // samplerWriteDescriptorSet.dstArrayElement = 0;
+    // samplerWriteDescriptorSet.descriptorCount = 1;
+    // samplerWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    // samplerWriteDescriptorSet.pBufferInfo = nullptr;
+    // samplerWriteDescriptorSet.pImageInfo = &samplerDescriptorImageInfo;
+    // samplerWriteDescriptorSet.pTexelBufferView = nullptr;
+
+    VkWriteDescriptorSet sampledImageWriteDescriptorSet;
+    sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    sampledImageWriteDescriptorSet.pNext = nullptr;
+    sampledImageWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[3];
+    sampledImageWriteDescriptorSet.dstBinding = 0;
+    sampledImageWriteDescriptorSet.dstArrayElement = 0;
+    sampledImageWriteDescriptorSet.descriptorCount = 1;
+    sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
+    sampledImageWriteDescriptorSet.pImageInfo = &sampledImageDescriptorImageInfo;
+    sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
 
     vkUpdateDescriptorSets(m_vulkanDevice, 1, &frameBufWriteDescriptorSet, 0, nullptr);
     vkUpdateDescriptorSets(m_vulkanDevice, 1, &objectBufWriteDescriptorSet, 0, nullptr);
-    vkUpdateDescriptorSets(m_vulkanDevice, 1, &samplerWriteDescriptorSet, 0, nullptr);
+    //vkUpdateDescriptorSets(m_vulkanDevice, 1, &samplerWriteDescriptorSet, 0, nullptr);
+    vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1097,6 +946,8 @@ void DuckDemoGame::OnRender()
     {
         uint32_t dynamicOffsets = CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0;
         vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
+
+        vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 3, 1, &m_vulkanDescriptorSets[3], 0, nullptr);
 
         const VkDeviceSize vertexOffset = 0;
         vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanDuckVertexBuffer.m_buffer, &vertexOffset);

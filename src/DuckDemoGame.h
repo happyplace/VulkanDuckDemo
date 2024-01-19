@@ -85,8 +85,8 @@ private:
 
     VkRenderPass m_vulkanRenderPass;
     VkDescriptorPool m_vulkanDescriptorPool = VK_NULL_HANDLE;
-    std::array<VkDescriptorSetLayout, 3> m_vulkanDescriptorSetLayouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
-    std::array<VkDescriptorSet, 3> m_vulkanDescriptorSets = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSetLayout, 4> m_vulkanDescriptorSetLayouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSet, 4> m_vulkanDescriptorSets = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
     VkPipelineLayout m_vulkanPipelineLayout = VK_NULL_HANDLE;
     VkShaderModule m_vertexShader = VK_NULL_HANDLE;
     VkShaderModule m_fragmentShader = VK_NULL_HANDLE;
