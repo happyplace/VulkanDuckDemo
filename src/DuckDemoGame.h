@@ -102,4 +102,5 @@ private:
     float m_cameraRotationY;
 
     VulkanTexture m_vulkanDuckDiffuseTexture;
+    VulkanTexture m_vulkanfloorDiffuseTexture;
 };

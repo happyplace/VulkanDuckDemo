@@ -25,6 +25,7 @@ DuckDemoGame::~DuckDemoGame()
     m_vulkanFloorIndexBuffer.Reset();
     m_vulkanFloorVertexBuffer.Reset();
     m_vulkanDuckDiffuseTexture.Reset();
+    m_vulkanfloorDiffuseTexture.Reset();
 
     if (m_vulkanSampler)
     {
@@ -155,6 +156,15 @@ bool DuckDemoGame::OnInit()
         return false;
     }
 
+    result = CreateVulkanTexture("../rogue_texture.png", m_vulkanfloorDiffuseTexture);
+    if (result != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return false;
+    }
+
+    constexpr uint32_t c_sampledImageCount = 2;
+
     std::array<VkDescriptorPoolSize, 4> descriptorPoolSize;
     descriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorPoolSize[0].descriptorCount = 1;
@@ -163,7 +173,7 @@ bool DuckDemoGame::OnInit()
     descriptorPoolSize[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
     descriptorPoolSize[2].descriptorCount = 1;
     descriptorPoolSize[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    descriptorPoolSize[3].descriptorCount = 1;
+    descriptorPoolSize[3].descriptorCount = c_sampledImageCount;
 
     VkPhysicalDeviceFeatures physicalDeviceFeatures;
     vkGetPhysicalDeviceFeatures(m_vulkanPhysicalDevice, &physicalDeviceFeatures);
@@ -242,7 +252,7 @@ bool DuckDemoGame::OnInit()
     VkDescriptorSetLayoutBinding sampledImageDescriptorSetLayoutBindings;
     sampledImageDescriptorSetLayoutBindings.binding = 0;
     sampledImageDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    sampledImageDescriptorSetLayoutBindings.descriptorCount = 1;
+    sampledImageDescriptorSetLayoutBindings.descriptorCount = c_sampledImageCount;
     sampledImageDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     sampledImageDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
 
@@ -326,10 +336,14 @@ bool DuckDemoGame::OnInit()
     samplerDescriptorImageInfo.imageView = nullptr;
     samplerDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkDescriptorImageInfo sampledImageDescriptorImageInfo;
-    sampledImageDescriptorImageInfo.sampler = nullptr;
-    sampledImageDescriptorImageInfo.imageView = m_vulkanDuckDiffuseTexture.m_imageView;
-    sampledImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    std::array<VkDescriptorImageInfo, 2> sampledImageDescriptorImageInfos;
+    sampledImageDescriptorImageInfos[0].sampler = nullptr;
+    sampledImageDescriptorImageInfos[0].imageView = m_vulkanDuckDiffuseTexture.m_imageView;
+    sampledImageDescriptorImageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    sampledImageDescriptorImageInfos[1].sampler = nullptr;
+    sampledImageDescriptorImageInfos[1].imageView = m_vulkanfloorDiffuseTexture.m_imageView;
+    sampledImageDescriptorImageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet frameBufWriteDescriptorSet;
     frameBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -361,10 +375,10 @@ bool DuckDemoGame::OnInit()
     sampledImageWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[3];
     sampledImageWriteDescriptorSet.dstBinding = 0;
     sampledImageWriteDescriptorSet.dstArrayElement = 0;
-    sampledImageWriteDescriptorSet.descriptorCount = 1;
+    sampledImageWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(sampledImageDescriptorImageInfos.size());
     sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
-    sampledImageWriteDescriptorSet.pImageInfo = &sampledImageDescriptorImageInfo;
+    sampledImageWriteDescriptorSet.pImageInfo = sampledImageDescriptorImageInfos.data();
     sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
 
     vkUpdateDescriptorSets(m_vulkanDevice, 1, &frameBufWriteDescriptorSet, 0, nullptr);
