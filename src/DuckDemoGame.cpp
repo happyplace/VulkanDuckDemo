@@ -355,18 +355,6 @@ bool DuckDemoGame::OnInit()
     objectBufWriteDescriptorSet.pImageInfo = nullptr;
     objectBufWriteDescriptorSet.pTexelBufferView = nullptr;
 
-    // VkWriteDescriptorSet samplerWriteDescriptorSet;
-    // samplerWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    // samplerWriteDescriptorSet.pNext = nullptr;
-    // samplerWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[2];
-    // samplerWriteDescriptorSet.dstBinding = 0;
-    // samplerWriteDescriptorSet.dstArrayElement = 0;
-    // samplerWriteDescriptorSet.descriptorCount = 1;
-    // samplerWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-    // samplerWriteDescriptorSet.pBufferInfo = nullptr;
-    // samplerWriteDescriptorSet.pImageInfo = &samplerDescriptorImageInfo;
-    // samplerWriteDescriptorSet.pTexelBufferView = nullptr;
-
     VkWriteDescriptorSet sampledImageWriteDescriptorSet;
     sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     sampledImageWriteDescriptorSet.pNext = nullptr;
@@ -381,7 +369,6 @@ bool DuckDemoGame::OnInit()
 
     vkUpdateDescriptorSets(m_vulkanDevice, 1, &frameBufWriteDescriptorSet, 0, nullptr);
     vkUpdateDescriptorSets(m_vulkanDevice, 1, &objectBufWriteDescriptorSet, 0, nullptr);
-    //vkUpdateDescriptorSets(m_vulkanDevice, 1, &samplerWriteDescriptorSet, 0, nullptr);
     vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
