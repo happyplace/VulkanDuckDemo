@@ -171,7 +171,11 @@ void main()
     vec3 normalizedNormalW = normalize(vNormalW);
     vec3 toEyeW = normalize(Frame.uEyePosW - vPositionW);
 
+#ifdef USE_TEXTURE
     vec3 rgb = (texture(samplerColour, inUV, 1.0f) * Object.uDiffuseAlbedo).xyz;
+#else
+    vec3 rgb = Object.uDiffuseAlbedo.xyz;
+#endif // USE_TEXTURE
 
     const float shadowFactor = 1.0f;
 

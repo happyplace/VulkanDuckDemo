@@ -580,6 +580,9 @@ bool DuckDemoGame::OnInit()
     const std::string usePointLight = "USE_POINT_LIGHT";
     //shaderc_compile_options_add_macro_definition(compileOptions, usePointLight.c_str(), static_cast<size_t>(usePointLight.size()), nullptr, 0);
 
+    const std::string useTexture = "USE_TEXTURE";
+    shaderc_compile_options_add_macro_definition(compileOptions, useTexture.c_str(), static_cast<size_t>(useTexture.size()), nullptr, 0);
+
     result = CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &m_fragmentShader, compileOptions);
     if (result != VK_SUCCESS)
     {
