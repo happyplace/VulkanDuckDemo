@@ -13,12 +13,28 @@
 
 struct VulkanBuffer
 {
-    ~VulkanBuffer();
+    ~VulkanBuffer()
+    {
+        Reset();
+    }
     void Reset();
 
 	VkBuffer m_buffer = VK_NULL_HANDLE;
 	VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
 	VkDeviceSize m_deviceSize = 0;
+};
+
+struct VulkanTexture
+{
+    ~VulkanTexture()
+    {
+        Reset();
+    }
+    void Reset();
+
+    VkImage m_image = VK_NULL_HANDLE;
+    VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
+    VkImageView m_imageView = VK_NULL_HANDLE;
 };
 
 class Game
@@ -62,6 +78,12 @@ protected:
     uint32_t m_currentSwapchainImageIndex = 0;
     std::vector<VkImageView> m_vulkanSwapchainImageViews;
     VkImageView m_vulkanDepthStencilImageView = VK_NULL_HANDLE;
+    VkCommandBuffer m_vulkanTempCommandBuffer = VK_NULL_HANDLE;
+    VkCommandPool m_vulkanTempCommandPool = VK_NULL_HANDLE;
+    VkFence m_vulkanTempFence = VK_NULL_HANDLE;
+    VkPhysicalDevice m_vulkanPhysicalDevice = VK_NULL_HANDLE;
+
+    VkQueue m_vulkanQueue = VK_NULL_HANDLE;
 
 private:
     bool InitWindow();
@@ -87,12 +109,11 @@ private:
     VkInstance m_instance = VK_NULL_HANDLE;
     VkSurfaceKHR m_vulkanSurface = VK_NULL_HANDLE;
     uint32_t m_vulkanGraphicsQueueIndex = 0;
-    VkPhysicalDevice m_vulkanPhysicalDevice;
-    VkQueue m_vulkanQueue = VK_NULL_HANDLE;
+    //VkQueue m_vulkanQueue = VK_NULL_HANDLE;
     VkSwapchainKHR m_vulkanSwapchain = VK_NULL_HANDLE;
     VkSemaphore m_vulkanAquireSwapchain = VK_NULL_HANDLE;
     VkSemaphore m_vulkanReleaseSwapchain = VK_NULL_HANDLE;
-    VkCommandPool m_vulkanPrimaryCommandPool;
+    VkCommandPool m_vulkanPrimaryCommandPool = VK_NULL_HANDLE;
     VkFence m_vulkanSubmitFence = VK_NULL_HANDLE;
     shaderc_compiler_t m_shaderCompiler = nullptr;
     VkImage m_vulkanDepthStencilImage = VK_NULL_HANDLE;

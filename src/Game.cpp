@@ -16,11 +16,6 @@ Game* Game::Get()
     return ms_instance;
 }
 
-VulkanBuffer::~VulkanBuffer()
-{
-    Reset();
-}
-
 void VulkanBuffer::Reset()
 {
     if (m_buffer == VK_NULL_HANDLE && m_deviceMemory == VK_NULL_HANDLE)
@@ -54,6 +49,46 @@ void VulkanBuffer::Reset()
     {
         vkFreeMemory(vulkanDevice, m_deviceMemory, s_allocator);
         m_deviceMemory = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanTexture::Reset()
+{
+    if (m_image == VK_NULL_HANDLE && m_deviceMemory == VK_NULL_HANDLE)
+    {
+        return;
+    }
+    
+    Game* game = Game::Get();
+    if (game == nullptr)
+    {
+        DUCK_DEMO_ASSERT(game);
+        return;
+    }
+    
+    VkDevice vulkanDevice = game->GetVulkanDevice();
+    if (vulkanDevice == VK_NULL_HANDLE)
+    {
+        DUCK_DEMO_ASSERT(vulkanDevice != VK_NULL_HANDLE);
+        return;
+    }
+        
+    if (m_imageView != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(vulkanDevice, m_imageView, s_allocator);
+        m_imageView = VK_NULL_HANDLE;
+    }
+
+    if (m_deviceMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(vulkanDevice, m_deviceMemory, s_allocator);
+        m_deviceMemory = VK_NULL_HANDLE;
+    }
+
+    if (m_image != VK_NULL_HANDLE)
+    {
+        vkDestroyImage(vulkanDevice, m_image, s_allocator);
+        m_image = VK_NULL_HANDLE;
     }
 }
 
@@ -93,6 +128,21 @@ Game::~Game()
     shaderc_compiler_release(m_shaderCompiler);
 
     FreeVulkanDepthStencilImage();
+
+    if (m_vulkanTempCommandBuffer)
+    {
+        vkFreeCommandBuffers(m_vulkanDevice, m_vulkanTempCommandPool, 1, &m_vulkanTempCommandBuffer);
+    }
+
+    if (m_vulkanTempCommandPool)
+    {
+        vkDestroyCommandPool(m_vulkanDevice, m_vulkanTempCommandPool, s_allocator);
+    }
+
+    if (m_vulkanTempFence)
+    {
+        vkDestroyFence(m_vulkanDevice, m_vulkanTempFence, s_allocator);
+    }
 
     if (m_vulkanPrimaryCommandBuffer)
     {
@@ -813,6 +863,29 @@ bool Game::InitVulkanGameResources()
     DUCK_DEMO_VULKAN_ASSERT(vkCreateFence(m_vulkanDevice, &fenceCreateInfo, s_allocator, &m_vulkanSubmitFence));
 
     m_vulkanClearValue.color = {{ 0.392156869f, 0.58431375f, 0.929411769f, 1.0f }};
+
+    {
+        VkCommandPoolCreateInfo commandPoolCreateInfo;
+        commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        commandPoolCreateInfo.pNext = nullptr;
+        commandPoolCreateInfo.flags = 0;
+        commandPoolCreateInfo.queueFamilyIndex = m_vulkanGraphicsQueueIndex;
+        DUCK_DEMO_VULKAN_ASSERT(vkCreateCommandPool(m_vulkanDevice, &commandPoolCreateInfo, s_allocator, &m_vulkanTempCommandPool));
+
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo;
+        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.pNext = nullptr;
+        commandBufferAllocateInfo.commandPool = m_vulkanTempCommandPool;
+        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        commandBufferAllocateInfo.commandBufferCount = 1;
+        DUCK_DEMO_VULKAN_ASSERT(vkAllocateCommandBuffers(m_vulkanDevice, &commandBufferAllocateInfo, &m_vulkanTempCommandBuffer));
+
+        VkFenceCreateInfo fenceCreateInfo;
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceCreateInfo.pNext = nullptr;
+        fenceCreateInfo.flags = 0;
+        DUCK_DEMO_VULKAN_ASSERT(vkCreateFence(m_vulkanDevice, &fenceCreateInfo, s_allocator, &m_vulkanTempFence));
+    }
 
     return true;
 }

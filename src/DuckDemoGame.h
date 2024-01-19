@@ -85,12 +85,13 @@ private:
 
     VkRenderPass m_vulkanRenderPass;
     VkDescriptorPool m_vulkanDescriptorPool = VK_NULL_HANDLE;
-    std::array<VkDescriptorSetLayout, 2> m_vulkanDescriptorSetLayouts = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    std::array<VkDescriptorSet, 2> m_vulkanDescriptorSets = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSetLayout, 3> m_vulkanDescriptorSetLayouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSet, 3> m_vulkanDescriptorSets = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
     VkPipelineLayout m_vulkanPipelineLayout = VK_NULL_HANDLE;
     VkShaderModule m_vertexShader = VK_NULL_HANDLE;
     VkShaderModule m_fragmentShader = VK_NULL_HANDLE;
     VkPipeline m_vulkanPipeline = VK_NULL_HANDLE;
+    VkSampler m_vulkanSampler = VK_NULL_HANDLE;
     
     MeshLoader::Mesh m_duckMesh;
     MeshLoader::Mesh m_floorMesh;
@@ -99,4 +100,6 @@ private:
     glm::vec3 m_cameraPosition;
     float m_cameraRotationX;
     float m_cameraRotationY;
+
+    VulkanTexture m_vulkanDuckDiffuseTexture;
 };

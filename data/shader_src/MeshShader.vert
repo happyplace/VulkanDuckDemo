@@ -48,9 +48,11 @@ layout(std140, set = 1, binding = 0) uniform ObjectBuf
 
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec3 vNormalW;
 layout(location = 1) out vec3 vPositionW;
+layout(location = 2) out vec2 outUV;
 
 void main()
 {
@@ -59,4 +61,6 @@ void main()
     gl_Position = posW * Frame.uViewProj;
 
     vNormalW = aNormal * mat3(Object.uWorld);
+
+    outUV = inUV;
 }

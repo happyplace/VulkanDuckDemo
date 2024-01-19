@@ -38,6 +38,8 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
     PointLightBuf uPointLights[2];
 } Frame;
 
+layout(set = 2, binding = 0) uniform sampler2D samplerColour;
+
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
 {
     mat4 uWorld;
@@ -48,6 +50,7 @@ layout(std140, set = 1, binding = 0) uniform ObjectBuf
 
 layout(location = 0) in vec3 vNormalW;
 layout(location = 1) in vec3 vPositionW;
+layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec4 fFragColor;
 
@@ -168,11 +171,11 @@ void main()
     vec3 normalizedNormalW = normalize(vNormalW);
     vec3 toEyeW = normalize(Frame.uEyePosW - vPositionW);
 
-    vec4 ambient = Frame.uAmbientLight * Object.uDiffuseAlbedo;
+    vec3 rgb = (texture(samplerColour, inUV, 1.0f) * Object.uDiffuseAlbedo).xyz;
 
     const float shadowFactor = 1.0f;
 
-    vec3 lightResult = vec3(0.0f, 0.0f, 0.0f);
+    vec3 lightResult = vec3(0.0f, 0.0f, 0.0f) + Frame.uAmbientLight.xyz;
 #ifdef USE_DIRECTIONAL_LIGHT
     lightResult += shadowFactor * ComputeDirectionalLight(Frame.uDirLight, normalizedNormalW, toEyeW);
 #endif // USE_DIRECTIONAL_LIGHT
@@ -186,8 +189,9 @@ void main()
     lightResult += shadowFactor * ComputePointLight(Frame.uPointLights[1], vPositionW, normalizedNormalW, toEyeW);
 #endif // USE_POINT_LIGHT
 
-    fFragColor = ambient + vec4(lightResult.x, lightResult.y, lightResult.z, 0.0f);
-    
+    vec3 finalColour = rgb * lightResult;
+    fFragColor = vec4(finalColour.x, finalColour.y, finalColour.z, 0.0f);
+
     // Common convention to take alpha from diffuse material.
     fFragColor.a = Object.uDiffuseAlbedo.a;
 #endif // IS_WIREFRAME
