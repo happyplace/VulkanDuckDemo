@@ -763,28 +763,21 @@ void DuckDemoGame::OnResize()
     InitFrameBuffers();
 }
 
-void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
+CameraInput DuckDemoGame::GetCameraInput()
 {
-    SDL_GameController* gameController = nullptr;
+    constexpr int axisDeadZone = 8000;
+    constexpr float maxAxisValue = 32768.0f - axisDeadZone;
+
+    CameraInput cameraInput;
 
     const int numJoysticks = SDL_NumJoysticks();
     for (int i = 0; i < numJoysticks; ++i)
     {
-        gameController = SDL_GameControllerOpen(i);
+        SDL_GameController* gameController = SDL_GameControllerOpen(i);
         if (gameController == nullptr)
         {
             DUCK_DEMO_SHOW_ERROR("SDL_GameControllerOpen Error", SDL_GetError());
         }
-    }
-
-    if (gameController)
-    {
-        constexpr int axisDeadZone = 8000;
-        constexpr float maxAxisValue = 32768.0f - axisDeadZone;
-
-        constexpr float cameraMoveSpeed = 100.0f;
-        constexpr float cameraTurnSpeed = 120.0f;
-        constexpr float cameraRaiseSpeed = 150.0f;
 
         {
             const Sint16 xAxisRawValue = SDL_GameControllerGetAxis(gameController, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_RIGHTX);
@@ -803,13 +796,8 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
                 controllerAxis = glm::normalize(controllerAxis);
             }
 
-            m_cameraRotationX += controllerAxis.x * cameraTurnSpeed * static_cast<float>(gameTimer.DeltaTime());
-            m_cameraRotationY += controllerAxis.y * cameraTurnSpeed * static_cast<float>(gameTimer.DeltaTime());
-
-            m_cameraRotationX = DuckDemoUtils::WrapAngle<float>(m_cameraRotationX);
-            m_cameraRotationY = DuckDemoUtils::WrapAngle<float>(m_cameraRotationY);
-
-            m_cameraRotation = glm::quat(glm::vec3(glm::radians(m_cameraRotationY), glm::radians(m_cameraRotationX), 0.0f));
+            cameraInput.xCameraAxis = controllerAxis.x;
+            cameraInput.yCameraAxis = controllerAxis.y;
         }
 
         {
@@ -829,31 +817,106 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
                 controllerAxis = glm::normalize(controllerAxis);
             }
 
-            const glm::vec3 cameraForward = m_cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
-            const glm::vec3 cameraRight = m_cameraRotation * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-
-            m_cameraPosition += cameraForward * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * controllerAxis.y;
-            m_cameraPosition += cameraRight * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * controllerAxis.x;
+            cameraInput.yMoveAxis = controllerAxis.y;
+            cameraInput.xMoveAxis = controllerAxis.x;
         }
 
         {
-            const Uint8 leftShoulder = SDL_GameControllerGetButton(gameController, SDL_GameControllerButton::SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
-            const Uint8 rightShoulder = SDL_GameControllerGetButton(gameController, SDL_GameControllerButton::SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
-
-            int yAxis = 0.0f;
-            if (leftShoulder == 1)
-            {
-                yAxis -= 1;
-            }
-            if (rightShoulder == 1)
-            {
-                yAxis += 1;
-            }
-
-            const glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-            m_cameraPosition += worldUp * cameraRaiseSpeed * static_cast<float>(gameTimer.DeltaTime()) * static_cast<float>(yAxis);
+            cameraInput.cameraUp = SDL_GameControllerGetButton(gameController, SDL_GameControllerButton::SDL_CONTROLLER_BUTTON_LEFTSHOULDER) == 1;
+            cameraInput.cameraDown = SDL_GameControllerGetButton(gameController, SDL_GameControllerButton::SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) == 1;
         }
+    }
+
+    {
+        const Uint8* keyboardState = SDL_GetKeyboardState(NULL);
+        if (keyboardState[SDL_SCANCODE_W] || keyboardState[SDL_SCANCODE_UP])
+        {
+            cameraInput.yMoveAxis += 1.0f;
+        }
+        if (keyboardState[SDL_SCANCODE_S] || keyboardState[SDL_SCANCODE_DOWN])
+        {
+            cameraInput.yMoveAxis -= 1.0f;
+        }
+        if (keyboardState[SDL_SCANCODE_A] || keyboardState[SDL_SCANCODE_LEFT])
+        {
+            cameraInput.xMoveAxis += 1.0f;
+        }
+        if (keyboardState[SDL_SCANCODE_D] || keyboardState[SDL_SCANCODE_RIGHT])
+        {
+            cameraInput.xMoveAxis -= 1.0f;
+        }
+
+        cameraInput.cameraUp = keyboardState[SDL_SCANCODE_Q];
+        cameraInput.cameraDown = keyboardState[SDL_SCANCODE_E];
+
+        int mouseX;
+        int mouseY;
+        Uint32 mouseState = SDL_GetRelativeMouseState(&mouseX, &mouseY);
+
+        if (mouseState & SDL_BUTTON_RMASK)
+        {
+            if (!SDL_GetWindowMouseGrab(Game::Get()->GetWindow()))
+            {
+                SDL_SetWindowMouseGrab(Game::Get()->GetWindow(), SDL_TRUE);
+                SDL_SetRelativeMouseMode(SDL_TRUE);
+            }
+
+            constexpr float mouseDivider = 5.0f;
+            cameraInput.xCameraAxis = -mouseX / mouseDivider;
+            cameraInput.yCameraAxis = -mouseY / mouseDivider;
+        }
+        else
+        {
+            if (SDL_GetWindowMouseGrab(Game::Get()->GetWindow()))
+            {
+                SDL_SetWindowMouseGrab(Game::Get()->GetWindow(), SDL_FALSE);
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+            }
+        }
+    }
+
+    return cameraInput;
+}
+
+void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
+{
+    CameraInput cameraInput = GetCameraInput();
+
+    constexpr float cameraMoveSpeed = 100.0f;
+    constexpr float cameraTurnSpeed = 120.0f;
+    constexpr float cameraRaiseSpeed = 150.0f;
+
+    {
+        m_cameraRotationX += cameraInput.xCameraAxis * cameraTurnSpeed * static_cast<float>(gameTimer.DeltaTime());
+        m_cameraRotationY += cameraInput.yCameraAxis * cameraTurnSpeed * static_cast<float>(gameTimer.DeltaTime());
+
+        m_cameraRotationX = DuckDemoUtils::WrapAngle<float>(m_cameraRotationX);
+        m_cameraRotationY = DuckDemoUtils::WrapAngle<float>(m_cameraRotationY);
+
+        m_cameraRotation = glm::quat(glm::vec3(glm::radians(m_cameraRotationY), glm::radians(m_cameraRotationX), 0.0f));
+    }
+
+    {
+        const glm::vec3 cameraForward = m_cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        const glm::vec3 cameraRight = m_cameraRotation * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+
+        m_cameraPosition += cameraForward * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * cameraInput.yMoveAxis;
+        m_cameraPosition += cameraRight * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * cameraInput.xMoveAxis;
+    }
+
+    {
+        int yAxis = 0.0f;
+        if (cameraInput.cameraUp)
+        {
+            yAxis -= 1;
+        }
+        if (cameraInput.cameraDown)
+        {
+            yAxis += 1;
+        }
+
+        const glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+        m_cameraPosition += worldUp * cameraRaiseSpeed * static_cast<float>(gameTimer.DeltaTime()) * static_cast<float>(yAxis);
     }
 
     UpdateFrameBuffer();

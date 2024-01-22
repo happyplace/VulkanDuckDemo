@@ -55,6 +55,16 @@ struct DUCK_DEMO_ALIGN(16) ObjectBuf
     uint uTextureIndex;
 };
 
+struct CameraInput
+{
+    float xCameraAxis = 0.0f;
+    float yCameraAxis = 0.0f;
+    float xMoveAxis = 0.0f;
+    float yMoveAxis = 0.0f;
+    bool cameraUp = false;
+    bool cameraDown = false;
+};
+
 class DuckDemoGame : public Game
 {
 public:
@@ -72,6 +82,8 @@ private:
     virtual void OnImGui() override;
 
     void UpdateFrameBuffer();
+
+    CameraInput GetCameraInput();
 
     std::vector<VkFramebuffer> m_vulkanFrameBuffers;
 
