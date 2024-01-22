@@ -10,12 +10,6 @@
 
 constexpr bool s_wireframeMode = false;
 
-DuckDemoGame::DuckDemoGame()
-{
-    DUCK_DEMO_ASSERT(!ms_instance);
-    ms_instance = this;
-}
-
 DuckDemoGame::~DuckDemoGame()
 {
     m_vulkanFrameBuffer.Reset();
@@ -71,9 +65,6 @@ DuckDemoGame::~DuckDemoGame()
     {
         vkDestroyRenderPass(m_vulkanDevice, m_vulkanRenderPass, s_allocator);
     }
-
-    DUCK_DEMO_ASSERT(ms_instance == this);
-    ms_instance = nullptr;
 }
 
 bool DuckDemoGame::OnInit()
@@ -1034,7 +1025,9 @@ void DuckDemoGame::OnRender()
 
     vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
 
-    RenderImGui();
+    BeginRender_ImGuiRenderPass(m_imGuiRenderPass);
+    OnImGui();
+    EndRender_ImGuiRenderPass(m_imGuiRenderPass, m_vulkanPrimaryCommandBuffer);
 }
 
 void DuckDemoGame::OnImGui()

@@ -10,6 +10,7 @@
 #include "shaderc/shaderc.h" 
 
 #include "GameTimer.h"
+#include "ImGuiRenderPass.h"
 
 struct VulkanBuffer
 {
@@ -42,12 +43,23 @@ class Game
 public:
     static Game* Get();
 
+    Game();
     virtual ~Game();
 
     int Run(int argc, char** argv);
 
     SDL_Window* GetWindow() const { return m_window; }
     VkDevice GetVulkanDevice() const { return m_vulkanDevice; }
+    uint32_t GetVulkanSwapchainWidth() const { return m_vulkanSwapchainWidth; }
+    uint32_t GetVulkanSwapchainHeight() const { return m_vulkanSwapchainHeight; }
+    uint32_t GetVulkanSwapChainImageCount() const { return m_vulkanSwapChainImageCount; }
+    const std::vector<VkImageView>& GetVulkanSwapchainImageViews() const { return m_vulkanSwapchainImageViews; }
+    VkInstance GetVulkanInstance() const { return m_instance; }
+    VkFormat GetVulkanSwapchainPixelFormat() const { return m_vulkanSwapchainPixelFormat; }
+    VkPhysicalDevice GetVulkanPhysicalDevice() const { return m_vulkanPhysicalDevice; }
+    uint32_t GetVulkanGraphicsQueueIndex() const { return m_vulkanGraphicsQueueIndex; }
+    VkQueue GetVulkanQueue() const { return m_vulkanQueue; }
+    uint32_t GetCurrentSwapchainImageIndex() const { return m_currentSwapchainImageIndex; }
 
     void QuitGame();
 
@@ -58,9 +70,6 @@ protected:
     virtual void OnResize() = 0;
     virtual void OnUpdate(const GameTimer& gameTimer) = 0;
     virtual void OnRender() = 0;
-    virtual void OnImGui() = 0;
-
-    void RenderImGui();
 
     VkResult CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule, const shaderc_compile_options_t compileOptions = nullptr);
     VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
@@ -83,6 +92,7 @@ protected:
     VkCommandPool m_vulkanTempCommandPool = VK_NULL_HANDLE;
     VkFence m_vulkanTempFence = VK_NULL_HANDLE;
     VkPhysicalDevice m_vulkanPhysicalDevice = VK_NULL_HANDLE;
+    ImGuiRenderPass m_imGuiRenderPass;
 
     VkQueue m_vulkanQueue = VK_NULL_HANDLE;
 
@@ -99,9 +109,6 @@ private:
     void Resize(int32_t width = -1, int32_t height = -1);
     bool BeginRender();
     void EndRender();
-
-    bool InitImGui();
-    void ResizeImGui();
 
     bool m_quit = false;
     GameTimer m_gameTimer;
@@ -121,9 +128,6 @@ private:
     VkDeviceMemory m_vulkanDepthStencilImageMemory = VK_NULL_HANDLE;
     VkDeviceSize m_minUniformBufferOffsetAlignment = 0;
     uint32_t m_vulkanSwapChainImageCount = 0;
-    VkDescriptorPool m_imguiDescriptorPool = VK_NULL_HANDLE;
-    VkRenderPass m_imguiRenderPass = VK_NULL_HANDLE;
-    std::vector<VkFramebuffer> m_imguiFrameBuffers;
 
 #ifdef DUCK_DEMO_VULKAN_DEBUG
     VkDebugReportCallbackEXT m_debugReportCallbackExt = VK_NULL_HANDLE;

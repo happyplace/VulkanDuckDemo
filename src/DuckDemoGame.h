@@ -68,7 +68,6 @@ struct CameraInput
 class DuckDemoGame : public Game
 {
 public:
-    DuckDemoGame();
     virtual ~DuckDemoGame() override;
 
 private:
@@ -79,7 +78,8 @@ private:
     virtual void OnResize() override;
     virtual void OnUpdate(const GameTimer& gameTimer) override;
     virtual void OnRender() override;
-    virtual void OnImGui() override;
+    
+    void OnImGui();
 
     void UpdateFrameBuffer();
 
