@@ -11,32 +11,8 @@
 
 #include "GameTimer.h"
 #include "ImGuiRenderPass.h"
-
-struct VulkanBuffer
-{
-    ~VulkanBuffer()
-    {
-        Reset();
-    }
-    void Reset();
-
-	VkBuffer m_buffer = VK_NULL_HANDLE;
-	VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
-	VkDeviceSize m_deviceSize = 0;
-};
-
-struct VulkanTexture
-{
-    ~VulkanTexture()
-    {
-        Reset();
-    }
-    void Reset();
-
-    VkImage m_image = VK_NULL_HANDLE;
-    VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
-    VkImageView m_imageView = VK_NULL_HANDLE;
-};
+#include "VulkanBuffer.h"
+#include "VulkanTexture.h"
 
 class Game
 {
@@ -47,6 +23,10 @@ public:
     virtual ~Game();
 
     int Run(int argc, char** argv);
+
+    VkResult CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule, const shaderc_compile_options_t compileOptions = nullptr);
+    VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
+    VkDeviceSize CalculateUniformBufferSize(const std::size_t size) const;
 
     SDL_Window* GetWindow() const { return m_window; }
     VkDevice GetVulkanDevice() const { return m_vulkanDevice; }
@@ -60,6 +40,8 @@ public:
     uint32_t GetVulkanGraphicsQueueIndex() const { return m_vulkanGraphicsQueueIndex; }
     VkQueue GetVulkanQueue() const { return m_vulkanQueue; }
     uint32_t GetCurrentSwapchainImageIndex() const { return m_currentSwapchainImageIndex; }
+    VkImageView GetVulkanDepthStencilImageView() const { return m_vulkanDepthStencilImageView; }
+    VkClearValue GetVulkanClearValue() const { return m_vulkanClearValue; }
 
     void QuitGame();
 
@@ -71,12 +53,9 @@ protected:
     virtual void OnUpdate(const GameTimer& gameTimer) = 0;
     virtual void OnRender() = 0;
 
-    VkResult CompileShaderFromDisk(const std::string& path, const shaderc_shader_kind shaderKind, VkShaderModule* OutShaderModule, const shaderc_compile_options_t compileOptions = nullptr);
-    VkResult CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferUsageFlagBits bufferUsageFlagBits, VulkanBuffer& OutVulkanBuffer);
     void FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize, VkDeviceSize offset = 0);
     int32_t FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const;
     // this will take the size and make sure it will alighn with uniform buffer alightment rules of the gpu
-    VkDeviceSize CalculateUniformBufferSize(const std::size_t size) const;
     VkResult CreateVulkanTexture(const std::string path, VulkanTexture& outVulkanTexture);
 
     VkDevice m_vulkanDevice = VK_NULL_HANDLE;
@@ -93,8 +72,6 @@ protected:
     VkFence m_vulkanTempFence = VK_NULL_HANDLE;
     VkPhysicalDevice m_vulkanPhysicalDevice = VK_NULL_HANDLE;
     ImGuiRenderPass m_imGuiRenderPass;
-
-    VkQueue m_vulkanQueue = VK_NULL_HANDLE;
 
 private:
     bool InitWindow();
@@ -117,7 +94,7 @@ private:
     VkInstance m_instance = VK_NULL_HANDLE;
     VkSurfaceKHR m_vulkanSurface = VK_NULL_HANDLE;
     uint32_t m_vulkanGraphicsQueueIndex = 0;
-    //VkQueue m_vulkanQueue = VK_NULL_HANDLE;
+    VkQueue m_vulkanQueue = VK_NULL_HANDLE;
     VkSwapchainKHR m_vulkanSwapchain = VK_NULL_HANDLE;
     VkSemaphore m_vulkanAquireSwapchain = VK_NULL_HANDLE;
     VkSemaphore m_vulkanReleaseSwapchain = VK_NULL_HANDLE;

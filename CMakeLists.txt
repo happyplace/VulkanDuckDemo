@@ -24,6 +24,9 @@ set(vdd-src
     "src/GameTimer.cpp"
     "src/DuckDemoGame.cpp"
     "src/ImGuiRenderPass.cpp"
+    "src/MeshRenderPass.cpp"
+    "src/VulkanBuffer.cpp"
+    "src/VulkanTexture.cpp"
 )
 
 include_directories(SYSTEM external/glm)

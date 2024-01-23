@@ -8,697 +8,72 @@
 
 #include "meshloader/MeshLoader.h"
 
-constexpr bool s_wireframeMode = false;
-
 DuckDemoGame::~DuckDemoGame()
 {
-    m_vulkanFrameBuffer.Reset();
-    m_vulkanObjectBuffer.Reset();
-    m_vulkanDuckIndexBuffer.Reset();
-    m_vulkanDuckVertexBuffer.Reset();
-    m_vulkanFloorIndexBuffer.Reset();
-    m_vulkanFloorVertexBuffer.Reset();
-    m_vulkanDuckDiffuseTexture.Reset();
-    m_vulkanfloorDiffuseTexture.Reset();
+    m_renderObjects.clear();
 
-    if (m_vulkanSampler)
-    {
-        vkDestroySampler(m_vulkanDevice, m_vulkanSampler, s_allocator);
-    }
-
-    if (m_vulkanPipeline)
-    {
-        vkDestroyPipeline(m_vulkanDevice, m_vulkanPipeline, s_allocator);
-    }
-
-    if (m_vertexShader)
-    {
-        vkDestroyShaderModule(m_vulkanDevice, m_vertexShader, s_allocator);
-    }
-
-    if (m_fragmentShader)
-    {
-        vkDestroyShaderModule(m_vulkanDevice, m_fragmentShader, s_allocator);
-    }
-
-    if (m_vulkanPipelineLayout)
-    {
-        vkDestroyPipelineLayout(m_vulkanDevice, m_vulkanPipelineLayout, s_allocator);
-    }
-
-    for (std::size_t i = 0; i < m_vulkanDescriptorSetLayouts.size(); ++i)
-    {
-        if (m_vulkanDescriptorSetLayouts[i])
-        {
-            vkDestroyDescriptorSetLayout(m_vulkanDevice, m_vulkanDescriptorSetLayouts[i], s_allocator);
-        }
-    }
-
-    if (m_vulkanDescriptorPool)
-    {
-        vkDestroyDescriptorPool(m_vulkanDevice, m_vulkanDescriptorPool, s_allocator);
-    }
-
-    DestroyFrameBuffers();
-
-    if (m_vulkanRenderPass)
-    {
-        vkDestroyRenderPass(m_vulkanDevice, m_vulkanRenderPass, s_allocator);
-    }
+    Free_MeshRenderPass(m_defaultMeshRenderPass);
+    Free_MeshRenderPass(m_wireframeMeshRenderPass);
 }
 
 bool DuckDemoGame::OnInit()
 {
-    std::array<VkAttachmentDescription, 2> attachmentDescriptions;
-
-    attachmentDescriptions[0].flags = 0;
-    attachmentDescriptions[0].format = m_vulkanSwapchainPixelFormat;
-    attachmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    attachmentDescriptions[1].flags = 0;
-    attachmentDescriptions[1].format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-    attachmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference colourAttachmentReference;
-    colourAttachmentReference.attachment = 0;
-    colourAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depthAttachmentReference;
-    depthAttachmentReference.attachment = 1;
-    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpassDescription;
-    subpassDescription.flags = 0;
-    subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpassDescription.inputAttachmentCount = 0;
-    subpassDescription.pInputAttachments = nullptr;
-    subpassDescription.colorAttachmentCount = 1;
-    subpassDescription.pColorAttachments = &colourAttachmentReference;
-    subpassDescription.pResolveAttachments = nullptr;
-    subpassDescription.pDepthStencilAttachment = &depthAttachmentReference;
-    subpassDescription.preserveAttachmentCount = 0;
-    subpassDescription.pPreserveAttachments = nullptr;
-
-    // VkSubpassDependency subpassDependency;
-    // subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    // subpassDependency.dstSubpass = 0;
-    // subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    // subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    // subpassDependency.srcAccessMask = 0;
-    // subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    // subpassDependency.dependencyFlags = 0;
-
-    VkRenderPassCreateInfo renderPassCreateInfo;
-    renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassCreateInfo.pNext = nullptr;
-    renderPassCreateInfo.flags = 0;
-    renderPassCreateInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
-    renderPassCreateInfo.pAttachments = attachmentDescriptions.data();
-    renderPassCreateInfo.subpassCount = 1;
-    renderPassCreateInfo.pSubpasses = &subpassDescription;
-    //renderPassCreateInfo.dependencyCount = 1;
-    //renderPassCreateInfo.pDependencies = &subpassDependency;
-    renderPassCreateInfo.dependencyCount = 0;
-    renderPassCreateInfo.pDependencies = nullptr;
-
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateRenderPass(m_vulkanDevice, &renderPassCreateInfo, s_allocator, &m_vulkanRenderPass));
-
-    if (!InitFrameBuffers())
     {
-        return false;
-    }
-
-    VkResult result = CreateVulkanTexture("../kachujin_g_rosales/Kachujin_diffuse.png", m_vulkanDuckDiffuseTexture);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    result = CreateVulkanTexture("../rogue_texture.png", m_vulkanfloorDiffuseTexture);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    constexpr uint32_t c_sampledImageCount = 2;
-
-    std::array<VkDescriptorPoolSize, 4> descriptorPoolSize;
-    descriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptorPoolSize[0].descriptorCount = 1;
-    descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    descriptorPoolSize[1].descriptorCount = 1;
-    descriptorPoolSize[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-    descriptorPoolSize[2].descriptorCount = 1;
-    descriptorPoolSize[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    descriptorPoolSize[3].descriptorCount = c_sampledImageCount;
-
-    VkPhysicalDeviceFeatures physicalDeviceFeatures;
-    vkGetPhysicalDeviceFeatures(m_vulkanPhysicalDevice, &physicalDeviceFeatures);
-
-    VkSamplerCreateInfo samplerCreateInfo;
-    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerCreateInfo.pNext = nullptr;
-    samplerCreateInfo.flags = 0;
-    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerCreateInfo.mipLodBias = 0.0f;
-    if (physicalDeviceFeatures.samplerAnisotropy)
-    {
-        VkPhysicalDeviceProperties physicalDeviceProperties;
-        vkGetPhysicalDeviceProperties(m_vulkanPhysicalDevice, &physicalDeviceProperties);
-
-        samplerCreateInfo.anisotropyEnable = VK_TRUE;
-        samplerCreateInfo.maxAnisotropy = physicalDeviceProperties.limits.maxSamplerAnisotropy;
-    }
-    else
-    {
-        samplerCreateInfo.anisotropyEnable = VK_FALSE;
-        samplerCreateInfo.maxAnisotropy = 1.0f;
-    }
-    samplerCreateInfo.compareEnable = VK_FALSE;
-    samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-    samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = 0.0f;
-    samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateSampler(m_vulkanDevice, &samplerCreateInfo, s_allocator, &m_vulkanSampler));
-
-    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
-    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptorPoolCreateInfo.pNext = nullptr;
-    descriptorPoolCreateInfo.flags = 0;
-    descriptorPoolCreateInfo.maxSets = static_cast<uint32_t>(descriptorPoolSize.size());
-    descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSize.size());
-    descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSize.data();
-
-    result = vkCreateDescriptorPool(m_vulkanDevice, &descriptorPoolCreateInfo, s_allocator, &m_vulkanDescriptorPool);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanFrameBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(CalculateUniformBufferSize(sizeof(ObjectBuf)) * 2),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_vulkanObjectBuffer));
-
-    VkDescriptorSetLayoutBinding frameBufDescriptorSetLayoutBindings;
-    frameBufDescriptorSetLayoutBindings.binding = 0;
-    frameBufDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    frameBufDescriptorSetLayoutBindings.descriptorCount = 1;
-    frameBufDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    frameBufDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutBinding objectBufDescriptorSetLayoutBinding;
-    objectBufDescriptorSetLayoutBinding.binding = 0;
-    objectBufDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    objectBufDescriptorSetLayoutBinding.descriptorCount = 1;
-    objectBufDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    objectBufDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBindings;
-    samplerDescriptorSetLayoutBindings.binding = 0;
-    samplerDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-    samplerDescriptorSetLayoutBindings.descriptorCount = 1;
-    samplerDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    samplerDescriptorSetLayoutBindings.pImmutableSamplers = &m_vulkanSampler;
-
-    VkDescriptorSetLayoutBinding sampledImageDescriptorSetLayoutBindings;
-    sampledImageDescriptorSetLayoutBindings.binding = 0;
-    sampledImageDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    sampledImageDescriptorSetLayoutBindings.descriptorCount = c_sampledImageCount;
-    sampledImageDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    sampledImageDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutCreateInfo frameBufDescriptorSetLayoutCreateInfo;
-    frameBufDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    frameBufDescriptorSetLayoutCreateInfo.pNext = nullptr;
-    frameBufDescriptorSetLayoutCreateInfo.flags = 0;
-    frameBufDescriptorSetLayoutCreateInfo.bindingCount = 1;
-    frameBufDescriptorSetLayoutCreateInfo.pBindings = &frameBufDescriptorSetLayoutBindings;
-
-    VkDescriptorSetLayoutCreateInfo objectBufDescriptorSetLayoutCreateInfo;
-    objectBufDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    objectBufDescriptorSetLayoutCreateInfo.pNext = nullptr;
-    objectBufDescriptorSetLayoutCreateInfo.flags = 0;
-    objectBufDescriptorSetLayoutCreateInfo.bindingCount = 1;
-    objectBufDescriptorSetLayoutCreateInfo.pBindings = &objectBufDescriptorSetLayoutBinding;
-
-    VkDescriptorSetLayoutCreateInfo samplerDescriptorSetLayoutCreateInfo;
-    samplerDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    samplerDescriptorSetLayoutCreateInfo.pNext = nullptr;
-    samplerDescriptorSetLayoutCreateInfo.flags = 0;
-    samplerDescriptorSetLayoutCreateInfo.bindingCount = 1;
-    samplerDescriptorSetLayoutCreateInfo.pBindings = &samplerDescriptorSetLayoutBindings;
-
-    VkDescriptorSetLayoutCreateInfo sampledImageDescriptorSetLayoutCreateInfo;
-    sampledImageDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    sampledImageDescriptorSetLayoutCreateInfo.pNext = nullptr;
-    sampledImageDescriptorSetLayoutCreateInfo.flags = 0;
-    sampledImageDescriptorSetLayoutCreateInfo.bindingCount = 1;
-    sampledImageDescriptorSetLayoutCreateInfo.pBindings = &sampledImageDescriptorSetLayoutBindings;
-
-    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &frameBufDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[0]);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &objectBufDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[1]);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &samplerDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[2]);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    result = vkCreateDescriptorSetLayout(m_vulkanDevice, &sampledImageDescriptorSetLayoutCreateInfo, s_allocator, &m_vulkanDescriptorSetLayouts[3]);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
-    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptorSetAllocateInfo.pNext = nullptr;
-    descriptorSetAllocateInfo.descriptorPool = m_vulkanDescriptorPool;
-    descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(m_vulkanDescriptorSetLayouts.size());
-    descriptorSetAllocateInfo.pSetLayouts = m_vulkanDescriptorSetLayouts.data();
-
-    DUCK_DEMO_VULKAN_ASSERT(vkAllocateDescriptorSets(m_vulkanDevice, &descriptorSetAllocateInfo, m_vulkanDescriptorSets.data()));
-
-    VkDescriptorBufferInfo frameBufDescriptorBufferInfo;
-    frameBufDescriptorBufferInfo.buffer = m_vulkanFrameBuffer.m_buffer;
-    frameBufDescriptorBufferInfo.offset = 0;
-    frameBufDescriptorBufferInfo.range = sizeof(FrameBuf);
-
-    VkDescriptorBufferInfo objectBufDescriptorBufferInfo;
-    objectBufDescriptorBufferInfo.buffer = m_vulkanObjectBuffer.m_buffer;
-    objectBufDescriptorBufferInfo.offset = 0;
-    objectBufDescriptorBufferInfo.range = sizeof(ObjectBuf);
-
-    VkDescriptorImageInfo samplerDescriptorImageInfo;
-    samplerDescriptorImageInfo.sampler = m_vulkanSampler;
-    samplerDescriptorImageInfo.imageView = nullptr;
-    samplerDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    std::array<VkDescriptorImageInfo, 2> sampledImageDescriptorImageInfos;
-    sampledImageDescriptorImageInfos[0].sampler = nullptr;
-    sampledImageDescriptorImageInfos[0].imageView = m_vulkanDuckDiffuseTexture.m_imageView;
-    sampledImageDescriptorImageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    sampledImageDescriptorImageInfos[1].sampler = nullptr;
-    sampledImageDescriptorImageInfos[1].imageView = m_vulkanfloorDiffuseTexture.m_imageView;
-    sampledImageDescriptorImageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkWriteDescriptorSet frameBufWriteDescriptorSet;
-    frameBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    frameBufWriteDescriptorSet.pNext = nullptr;
-    frameBufWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[0];
-    frameBufWriteDescriptorSet.dstBinding = 0;
-    frameBufWriteDescriptorSet.dstArrayElement = 0;
-    frameBufWriteDescriptorSet.descriptorCount = 1;
-    frameBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    frameBufWriteDescriptorSet.pBufferInfo = &frameBufDescriptorBufferInfo;
-    frameBufWriteDescriptorSet.pImageInfo = nullptr;
-    frameBufWriteDescriptorSet.pTexelBufferView = nullptr;
-
-    VkWriteDescriptorSet objectBufWriteDescriptorSet;
-    objectBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    objectBufWriteDescriptorSet.pNext = nullptr;
-    objectBufWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[1];
-    objectBufWriteDescriptorSet.dstBinding = 0;
-    objectBufWriteDescriptorSet.dstArrayElement = 0;
-    objectBufWriteDescriptorSet.descriptorCount = 1;
-    objectBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    objectBufWriteDescriptorSet.pBufferInfo = &objectBufDescriptorBufferInfo;
-    objectBufWriteDescriptorSet.pImageInfo = nullptr;
-    objectBufWriteDescriptorSet.pTexelBufferView = nullptr;
-
-    VkWriteDescriptorSet sampledImageWriteDescriptorSet;
-    sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    sampledImageWriteDescriptorSet.pNext = nullptr;
-    sampledImageWriteDescriptorSet.dstSet = m_vulkanDescriptorSets[3];
-    sampledImageWriteDescriptorSet.dstBinding = 0;
-    sampledImageWriteDescriptorSet.dstArrayElement = 0;
-    sampledImageWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(sampledImageDescriptorImageInfos.size());
-    sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
-    sampledImageWriteDescriptorSet.pImageInfo = sampledImageDescriptorImageInfos.data();
-    sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
-
-    vkUpdateDescriptorSets(m_vulkanDevice, 1, &frameBufWriteDescriptorSet, 0, nullptr);
-    vkUpdateDescriptorSets(m_vulkanDevice, 1, &objectBufWriteDescriptorSet, 0, nullptr);
-    vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
-
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutCreateInfo.pNext = nullptr;
-    pipelineLayoutCreateInfo.flags = 0;
-    pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(m_vulkanDescriptorSetLayouts.size());
-    pipelineLayoutCreateInfo.pSetLayouts = m_vulkanDescriptorSetLayouts.data();
-    pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-    pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
-
-    result = vkCreatePipelineLayout(m_vulkanDevice, &pipelineLayoutCreateInfo, s_allocator, &m_vulkanPipelineLayout);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    result = CompileShaderFromDisk("data/shader_src/MeshShader.vert", shaderc_glsl_vertex_shader, &m_vertexShader);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-    
-    shaderc_compile_options_t compileOptions = shaderc_compile_options_initialize();
-    if (compileOptions == nullptr)
-    {
-        DUCK_DEMO_ASSERT(false);
-        return false;
-    }
-
-    if (s_wireframeMode)
-    {
-        std::string isWireframe = "IS_WIREFRAME";
-        shaderc_compile_options_add_macro_definition(compileOptions, isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
-    }
-
-    const std::string useDirectionalLight = "USE_DIRECTIONAL_LIGHT";
-    shaderc_compile_options_add_macro_definition(compileOptions, useDirectionalLight.c_str(), static_cast<size_t>(useDirectionalLight.size()), nullptr, 0);
-
-    const std::string useSpotLight = "USE_SPOT_LIGHT";
-    //shaderc_compile_options_add_macro_definition(compileOptions, useSpotLight.c_str(), static_cast<size_t>(useSpotLight.size()), nullptr, 0);
-
-    const std::string usePointLight = "USE_POINT_LIGHT";
-    //shaderc_compile_options_add_macro_definition(compileOptions, usePointLight.c_str(), static_cast<size_t>(usePointLight.size()), nullptr, 0);
-
-    const std::string useTexture = "USE_TEXTURE";
-    shaderc_compile_options_add_macro_definition(compileOptions, useTexture.c_str(), static_cast<size_t>(useTexture.size()), nullptr, 0);
-
-    result = CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &m_fragmentShader, compileOptions);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    std::array<VkPipelineShaderStageCreateInfo, 2> pipelineShaderStageCreateInfo;
-    pipelineShaderStageCreateInfo[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    pipelineShaderStageCreateInfo[0].pNext = nullptr;
-    pipelineShaderStageCreateInfo[0].flags = 0;
-    pipelineShaderStageCreateInfo[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    pipelineShaderStageCreateInfo[0].module = m_vertexShader;
-    pipelineShaderStageCreateInfo[0].pName = "main";
-    pipelineShaderStageCreateInfo[0].pSpecializationInfo = nullptr;
-
-    pipelineShaderStageCreateInfo[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    pipelineShaderStageCreateInfo[1].pNext = nullptr;
-    pipelineShaderStageCreateInfo[1].flags = 0;
-    pipelineShaderStageCreateInfo[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    pipelineShaderStageCreateInfo[1].module = m_fragmentShader;
-    pipelineShaderStageCreateInfo[1].pName = "main";
-    pipelineShaderStageCreateInfo[1].pSpecializationInfo = nullptr;
-
-    std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributeDescriptions;
-    vertexInputAttributeDescriptions[0].location = 0;
-    vertexInputAttributeDescriptions[0].binding = 0;
-    vertexInputAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexInputAttributeDescriptions[0].offset = offsetof(MeshLoader::Vertex, position);
-
-    vertexInputAttributeDescriptions[1].location = 1;
-    vertexInputAttributeDescriptions[1].binding = 0;
-    vertexInputAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexInputAttributeDescriptions[1].offset = offsetof(MeshLoader::Vertex, normal);
-    
-    vertexInputAttributeDescriptions[2].location = 2;
-    vertexInputAttributeDescriptions[2].binding = 0;
-    vertexInputAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-    vertexInputAttributeDescriptions[2].offset = offsetof(MeshLoader::Vertex, texture);
-
-    VkVertexInputBindingDescription vertexInputBindingDescription;
-    vertexInputBindingDescription.binding = 0;
-    vertexInputBindingDescription.stride = sizeof(MeshLoader::Vertex);
-    vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo;
-    pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    pipelineVertexInputStateCreateInfo.pNext = nullptr;
-    pipelineVertexInputStateCreateInfo.flags = 0;
-    pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-    pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
-    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributeDescriptions.size());
-    pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions.data();
-
-    VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo;
-    pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    pipelineInputAssemblyStateCreateInfo.pNext = nullptr;
-    pipelineInputAssemblyStateCreateInfo.flags = 0;
-    pipelineInputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    pipelineInputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
-
-    VkPipelineTessellationStateCreateInfo pipelineTessellationStateCreateInfo;
-    pipelineTessellationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-    pipelineTessellationStateCreateInfo.pNext = nullptr;
-    pipelineTessellationStateCreateInfo.flags = 0;
-    pipelineTessellationStateCreateInfo.patchControlPoints = 0;
-
-    VkViewport viewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<float>(m_vulkanSwapchainWidth);
-    viewport.height = static_cast<float>(m_vulkanSwapchainHeight);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissoring;
-    scissoring.offset.x = 0;
-    scissoring.offset.y = 0;
-    scissoring.extent.width = m_vulkanSwapchainWidth;
-    scissoring.extent.height = m_vulkanSwapchainHeight;
-
-    VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo;
-    pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    pipelineViewportStateCreateInfo.pNext = nullptr;
-    pipelineViewportStateCreateInfo.flags = 0;
-    pipelineViewportStateCreateInfo.viewportCount = 1;
-    pipelineViewportStateCreateInfo.pViewports = &viewport;
-    pipelineViewportStateCreateInfo.scissorCount = 1;
-    pipelineViewportStateCreateInfo.pScissors = &scissoring;
-
-    VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo;
-    pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    pipelineRasterizationStateCreateInfo.pNext = nullptr;
-    pipelineRasterizationStateCreateInfo.flags = 0;
-    pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-    pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-    pipelineRasterizationStateCreateInfo.polygonMode = s_wireframeMode ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-    pipelineRasterizationStateCreateInfo.cullMode = s_wireframeMode ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-    pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-    pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
-    pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-    pipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
-    pipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
-    pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
-
-    VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo;
-    pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    pipelineMultisampleStateCreateInfo.pNext = nullptr;
-    pipelineMultisampleStateCreateInfo.flags = 0;
-    pipelineMultisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    pipelineMultisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
-    pipelineMultisampleStateCreateInfo.minSampleShading = 0;
-    pipelineMultisampleStateCreateInfo.pSampleMask = nullptr;
-    pipelineMultisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
-    pipelineMultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
-
-    VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState;
-    pipelineColorBlendAttachmentState.blendEnable = VK_FALSE;
-    pipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-    pipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-    pipelineColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-    pipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    pipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    pipelineColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-    pipelineColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-    VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo;
-    pipelineColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    pipelineColorBlendStateCreateInfo.pNext = nullptr;
-    pipelineColorBlendStateCreateInfo.flags = 0;
-    pipelineColorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
-    pipelineColorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
-    pipelineColorBlendStateCreateInfo.attachmentCount = 1;
-    pipelineColorBlendStateCreateInfo.pAttachments = &pipelineColorBlendAttachmentState;
-    pipelineColorBlendStateCreateInfo.blendConstants[0] = 0.0f;
-    pipelineColorBlendStateCreateInfo.blendConstants[1] = 0.0f;
-    pipelineColorBlendStateCreateInfo.blendConstants[2] = 0.0f;
-    pipelineColorBlendStateCreateInfo.blendConstants[3] = 0.0f;
-
-    std::array<VkDynamicState,2> dynamicState;
-    dynamicState[0] = VK_DYNAMIC_STATE_VIEWPORT;
-    dynamicState[1] = VK_DYNAMIC_STATE_SCISSOR;
-
-    VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo;
-    pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    pipelineDynamicStateCreateInfo.pNext = nullptr;
-    pipelineDynamicStateCreateInfo.flags = 0;
-    pipelineDynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicState.size());
-    pipelineDynamicStateCreateInfo.pDynamicStates = dynamicState.data();
-    //pipelineDynamicStateCreateInfo.dynamicStateCount = 0;
-    //pipelineDynamicStateCreateInfo.pDynamicStates = nullptr;
-
-    VkStencilOpState stencilOpStateFront;
-    stencilOpStateFront.failOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateFront.passOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateFront.depthFailOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateFront.compareOp = VK_COMPARE_OP_NEVER;
-    stencilOpStateFront.compareMask = ~0;
-    stencilOpStateFront.writeMask = ~0;
-    stencilOpStateFront.reference = 0;
-
-    VkStencilOpState stencilOpStateBack;
-    stencilOpStateBack.failOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateBack.passOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateBack.depthFailOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateBack.compareOp = VK_COMPARE_OP_NEVER;
-    stencilOpStateBack.compareMask = ~0;
-    stencilOpStateBack.writeMask = ~0;
-    stencilOpStateBack.reference = 0;
-
-    VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo;
-    pipelineDepthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    pipelineDepthStencilStateCreateInfo.pNext = nullptr;
-    pipelineDepthStencilStateCreateInfo.flags = 0;
-    pipelineDepthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
-    pipelineDepthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
-    pipelineDepthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
-    pipelineDepthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
-    pipelineDepthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
-    pipelineDepthStencilStateCreateInfo.front = stencilOpStateFront;
-    pipelineDepthStencilStateCreateInfo.back = stencilOpStateBack;
-    pipelineDepthStencilStateCreateInfo.minDepthBounds = 0.0f;
-    pipelineDepthStencilStateCreateInfo.maxDepthBounds = 1.0f;
-
-    VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo;
-    graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    graphicsPipelineCreateInfo.pNext = nullptr;
-    graphicsPipelineCreateInfo.flags = 0;
-    graphicsPipelineCreateInfo.stageCount = static_cast<uint32_t>(pipelineShaderStageCreateInfo.size());
-    graphicsPipelineCreateInfo.pStages = pipelineShaderStageCreateInfo.data();
-    graphicsPipelineCreateInfo.pVertexInputState = &pipelineVertexInputStateCreateInfo;
-    graphicsPipelineCreateInfo.pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo;
-    graphicsPipelineCreateInfo.pTessellationState = &pipelineTessellationStateCreateInfo;
-    graphicsPipelineCreateInfo.pViewportState = &pipelineViewportStateCreateInfo;
-    graphicsPipelineCreateInfo.pRasterizationState = &pipelineRasterizationStateCreateInfo;
-    graphicsPipelineCreateInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
-    graphicsPipelineCreateInfo.pDepthStencilState = &pipelineDepthStencilStateCreateInfo;
-    graphicsPipelineCreateInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
-    graphicsPipelineCreateInfo.pDynamicState = &pipelineDynamicStateCreateInfo;
-    graphicsPipelineCreateInfo.layout = m_vulkanPipelineLayout;
-    graphicsPipelineCreateInfo.renderPass = m_vulkanRenderPass;
-    graphicsPipelineCreateInfo.subpass = 0;
-    graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
-    graphicsPipelineCreateInfo.basePipelineIndex = 0;
-
-    result = vkCreateGraphicsPipelines(m_vulkanDevice, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, s_allocator, &m_vulkanPipeline);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
-    }
-
-    {
-        std::unique_ptr<DuckDemoFile> modelFile = DuckDemoUtils::LoadFileFromDisk("../kachujin_g_rosales/kachujin_g_rosales.fbx");
-        if (modelFile == nullptr)
+        MeshRenderPassParams params;
+        params.m_maxRenderObjectCount = 2;
+
+        params.m_wireframe = false;
+        if (!Init_MeshRenderPass(m_defaultMeshRenderPass, params))
         {
-            DUCK_DEMO_ASSERT(false);
             return false;
         }
 
-        if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, m_duckMesh))
+        params.m_wireframe = true;
+        if (!Init_MeshRenderPass(m_wireframeMeshRenderPass, params))
         {
-            DUCK_DEMO_ASSERT(false);
             return false;
         }
-
-        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_duckMesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanDuckVertexBuffer));
-        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * m_duckMesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanDuckIndexBuffer));
-
-        FillVulkanBuffer(m_vulkanDuckVertexBuffer, m_duckMesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_duckMesh.vertexCount);
-        FillVulkanBuffer(m_vulkanDuckIndexBuffer, m_duckMesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_duckMesh.indexCount);
     }
 
     {
-        if (!MeshLoader::Loader::LoadCubePrimitive(m_floorMesh, 500.0f, 5.0f, 500.0f))
-        {
-            DUCK_DEMO_ASSERT(false);
-            return false;
-        }
+        m_renderObjects.emplace_back();
+        RenderObject& renderObject = m_renderObjects[m_renderObjects.size() - 1];
+        renderObject.objectBufferIndex = static_cast<int32_t>(m_renderObjects.size() - 1);
 
-        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * m_floorMesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vulkanFloorVertexBuffer));
-        DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * m_floorMesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_vulkanFloorIndexBuffer));
-
-        FillVulkanBuffer(m_vulkanFloorVertexBuffer, m_floorMesh.GetVertex(), sizeof(MeshLoader::Vertex) * m_floorMesh.vertexCount);
-        FillVulkanBuffer(m_vulkanFloorIndexBuffer, m_floorMesh.GetIndex(), sizeof(MeshLoader::IndexType) * m_floorMesh.indexCount);
-    }
-
-    {
         const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
         const glm::vec3 objectScale = glm::vec3(1.0f);
         const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(180.0f), glm::radians(180.0f), glm::radians(0.0f)));
+        
+        renderObject.objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
+        renderObject.objectBuf.uWorld = glm::transpose(renderObject.objectBuf.uWorld);
+        renderObject.objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+        renderObject.objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
+        renderObject.objectBuf.uRoughness = 0.2f;
+        renderObject.objectBuf.uTextureIndex = static_cast<uint>(renderObject.objectBufferIndex);
 
-        ObjectBuf objectBuf;
-        objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
-        objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
-        objectBuf.uDiffuseAlbedo = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-        objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
-        objectBuf.uRoughness = 0.2f;
-        objectBuf.uTextureIndex = 0;
-        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0);
+        UpdateObjectBuffer(renderObject);
+        UpdateObjectTexture(renderObject, "../kachujin_g_rosales/Kachujin_diffuse.png");
+        UpdateModel(renderObject, "../kachujin_g_rosales/kachujin_g_rosales.fbx");
     }
-
     {
-        const glm::vec3 objectPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-        const glm::vec3 objectScale = glm::vec3(1.0f);
-        const glm::quat objectRotation = glm::quat(glm::vec3(0.0f, 0.0f, 0.0f));
+        m_renderObjects.emplace_back();
+        RenderObject& renderObject = m_renderObjects[m_renderObjects.size() - 1];
+        renderObject.objectBufferIndex = static_cast<int32_t>(m_renderObjects.size() - 1);
 
-        ObjectBuf objectBuf;
-        objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
-        objectBuf.uWorld = glm::transpose(objectBuf.uWorld);
-        objectBuf.uDiffuseAlbedo = glm::vec4(0.930f, 0.530f, 0.823f, 1.0f);
-        objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
-        objectBuf.uRoughness = 0.2f;
-        objectBuf.uTextureIndex = 1;
-        FillVulkanBuffer(m_vulkanObjectBuffer, &objectBuf, sizeof(objectBuf), CalculateUniformBufferSize(sizeof(ObjectBuf)) * 1);
+        const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
+        const glm::vec3 objectScale = glm::vec3(1.0f);
+        const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(180.0f), glm::radians(180.0f), glm::radians(0.0f)));
+        
+        renderObject.objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
+        renderObject.objectBuf.uWorld = glm::transpose(renderObject.objectBuf.uWorld);
+        renderObject.objectBuf.uDiffuseAlbedo = glm::vec4(0.930f, 0.530f, 0.823f, 1.0f);
+        renderObject.objectBuf.uFresnelR0 = glm::vec3(0.02f, 0.02f, 0.02f);
+        renderObject.objectBuf.uRoughness = 0.2f;
+        renderObject.objectBuf.uTextureIndex = static_cast<uint>(renderObject.objectBufferIndex);
+
+        UpdateObjectBuffer(renderObject);
+        UpdateObjectTexture(renderObject, "../rogue_texture.png");
+        UpdateCubePrimitive(renderObject, 500.0f, 5.0f, 500.0f);
     }
 
     m_cameraRotationX = 0.0f;
@@ -709,49 +84,108 @@ bool DuckDemoGame::OnInit()
     return true;
 }
 
-bool DuckDemoGame::InitFrameBuffers()
+void DuckDemoGame::UpdateObjectBuffer(RenderObject& renderObject)
 {
-    m_vulkanFrameBuffers.clear();
+    FillVulkanBuffer(
+        m_defaultMeshRenderPass.m_vulkanObjectBuffer, 
+        &renderObject.objectBuf, 
+        sizeof(renderObject.objectBuf), 
+        CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
 
-    std::array<VkImageView, 2> attachments;
-    attachments[1] = m_vulkanDepthStencilImageView;
-
-    VkFramebufferCreateInfo frameBufferCreateInfo;
-    frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    frameBufferCreateInfo.pNext = nullptr;
-    frameBufferCreateInfo.flags = 0;
-    frameBufferCreateInfo.renderPass = m_vulkanRenderPass;
-    frameBufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-    frameBufferCreateInfo.pAttachments = attachments.data();
-    frameBufferCreateInfo.width = m_vulkanSwapchainWidth;
-    frameBufferCreateInfo.height = m_vulkanSwapchainHeight;
-    frameBufferCreateInfo.layers = 1;
-
-    for (VkImageView imageView : m_vulkanSwapchainImageViews)
-    {
-        attachments[0] = imageView;
-
-        VkFramebuffer framebuffer;
-        DUCK_DEMO_VULKAN_ASSERT(vkCreateFramebuffer(m_vulkanDevice, &frameBufferCreateInfo, s_allocator, &framebuffer));
-
-        m_vulkanFrameBuffers.push_back(framebuffer);
-    }
-
-    return true;
+    FillVulkanBuffer(
+        m_wireframeMeshRenderPass.m_vulkanObjectBuffer, 
+        &renderObject.objectBuf, 
+        sizeof(renderObject.objectBuf), 
+        CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
 }
 
-void DuckDemoGame::DestroyFrameBuffers()
+void DuckDemoGame::UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath)
 {
-    for (VkFramebuffer frameBuffer : m_vulkanFrameBuffers)
+    renderObject.m_texture.reset(new VulkanTexture());
+    VkResult result = CreateVulkanTexture(texturePath, *renderObject.m_texture.get());
+    if (result != VK_SUCCESS)
     {
-        vkDestroyFramebuffer(m_vulkanDevice, frameBuffer, s_allocator);
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return;
     }
+
+    VkDescriptorImageInfo descriptorImageInfo;
+    descriptorImageInfo.sampler = nullptr;
+    descriptorImageInfo.imageView = renderObject.m_texture->m_imageView;
+    descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet sampledImageWriteDescriptorSet;
+    sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    sampledImageWriteDescriptorSet.pNext = nullptr;
+    sampledImageWriteDescriptorSet.dstSet = m_defaultMeshRenderPass.m_vulkanDescriptorSets[3];
+    sampledImageWriteDescriptorSet.dstBinding = 0;
+    sampledImageWriteDescriptorSet.dstArrayElement = renderObject.objectBuf.uTextureIndex;
+    sampledImageWriteDescriptorSet.descriptorCount = 1;
+    sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
+    sampledImageWriteDescriptorSet.pImageInfo = &descriptorImageInfo;
+    sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+
+    sampledImageWriteDescriptorSet.dstSet = m_wireframeMeshRenderPass.m_vulkanDescriptorSets[3];
+
+    vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+}
+
+void DuckDemoGame::UpdateModel(RenderObject& renderObject, const std::string& modelPath)
+{
+    std::unique_ptr<DuckDemoFile> modelFile = DuckDemoUtils::LoadFileFromDisk(modelPath);
+    if (modelFile == nullptr)
+    {
+        DUCK_DEMO_ASSERT(false);
+        return;
+    }
+
+    MeshLoader::Mesh mesh;
+    if (!MeshLoader::Loader::LoadModel(modelFile->buffer.get(), modelFile->bufferSize, mesh))
+    {
+        DUCK_DEMO_ASSERT(false);
+        return;
+    }
+
+    renderObject.m_vertexBuffer.reset(new VulkanBuffer());
+    renderObject.m_indexBuffer.reset(new VulkanBuffer());
+
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * mesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, *renderObject.m_vertexBuffer.get()));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * mesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, *renderObject.m_indexBuffer.get()));
+
+    FillVulkanBuffer(*renderObject.m_vertexBuffer.get(), mesh.GetVertex(), sizeof(MeshLoader::Vertex) * mesh.vertexCount);
+    FillVulkanBuffer(*renderObject.m_indexBuffer.get(), mesh.GetIndex(), sizeof(MeshLoader::IndexType) * mesh.indexCount);
+
+    renderObject.m_indexCount = mesh.indexCount;
+}
+
+void DuckDemoGame::UpdateCubePrimitive(RenderObject& renderObject, const float width, const float height, const float depth)
+{
+    MeshLoader::Mesh mesh;
+    if (!MeshLoader::Loader::LoadCubePrimitive(mesh, width, height, depth))
+    {
+        DUCK_DEMO_ASSERT(false);
+        return;
+    }
+
+    renderObject.m_vertexBuffer.reset(new VulkanBuffer());
+    renderObject.m_indexBuffer.reset(new VulkanBuffer());
+
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::Vertex) * mesh.vertexCount), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, *renderObject.m_vertexBuffer.get()));
+    DUCK_DEMO_VULKAN_ASSERT(CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(MeshLoader::IndexType) * mesh.indexCount), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, *renderObject.m_indexBuffer.get()));
+
+    FillVulkanBuffer(*renderObject.m_vertexBuffer.get(), mesh.GetVertex(), sizeof(MeshLoader::Vertex) * mesh.vertexCount);
+    FillVulkanBuffer(*renderObject.m_indexBuffer.get(), mesh.GetIndex(), sizeof(MeshLoader::IndexType) * mesh.indexCount);
+
+    renderObject.m_indexCount = mesh.indexCount;
 }
 
 void DuckDemoGame::OnResize()
 {
-    DestroyFrameBuffers();
-    InitFrameBuffers();
+    Resize_MeshRenderPass(m_defaultMeshRenderPass);
+    Resize_MeshRenderPass(m_wireframeMeshRenderPass);
 }
 
 CameraInput DuckDemoGame::GetCameraInput()
@@ -954,76 +388,13 @@ void DuckDemoGame::UpdateFrameBuffer()
     frameBuf.uPointLights[1].uFalloffStart = 30.0f;
     frameBuf.uPointLights[1].uFalloffEnd = 50.0f;
 
-    FillVulkanBuffer(m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
+    FillVulkanBuffer(m_defaultMeshRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
+    FillVulkanBuffer(m_wireframeMeshRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
 }
 
 void DuckDemoGame::OnRender()
 {
-    std::array<VkClearValue, 2> clearValues;
-    clearValues[0] = m_vulkanClearValue;
-    clearValues[1].depthStencil.depth = 1.0f;
-    clearValues[1].depthStencil.stencil = 0u;
-
-    VkRenderPassBeginInfo renderPassBeginInfo;
-    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.pNext = nullptr;
-    renderPassBeginInfo.renderPass = m_vulkanRenderPass;
-    renderPassBeginInfo.framebuffer = m_vulkanFrameBuffers[m_currentSwapchainImageIndex];
-    renderPassBeginInfo.renderArea.extent.width = m_vulkanSwapchainWidth;
-    renderPassBeginInfo.renderArea.extent.height = m_vulkanSwapchainHeight;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-    renderPassBeginInfo.pClearValues = clearValues.data();
-    vkCmdBeginRenderPass(m_vulkanPrimaryCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-    vkCmdBindPipeline(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline);
-
-    VkViewport viewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<float>(m_vulkanSwapchainWidth);
-    viewport.height = static_cast<float>(m_vulkanSwapchainHeight);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(m_vulkanPrimaryCommandBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor;
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent.width = m_vulkanSwapchainWidth;
-    scissor.extent.height = m_vulkanSwapchainHeight;
-    vkCmdSetScissor(m_vulkanPrimaryCommandBuffer, 0, 1, &scissor);
-
-    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 0, 1, &m_vulkanDescriptorSets[0], 0, nullptr);
-    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 2, 1, &m_vulkanDescriptorSets[2], 0, nullptr);
-    vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 3, 1, &m_vulkanDescriptorSets[3], 0, nullptr);
-
-    // duck
-    {
-        uint32_t dynamicOffsets = CalculateUniformBufferSize(sizeof(ObjectBuf)) * 0;
-        vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
-
-        const VkDeviceSize vertexOffset = 0;
-        vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanDuckVertexBuffer.m_buffer, &vertexOffset);
-        vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanDuckIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, m_duckMesh.indexCount, 1, 0, 0, 0);
-    }
-
-    // floor
-    {
-        uint32_t dynamicOffsets = CalculateUniformBufferSize(sizeof(ObjectBuf)) * 1;
-        vkCmdBindDescriptorSets(m_vulkanPrimaryCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipelineLayout, 1, 1, &m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
-
-        const VkDeviceSize vertexOffset = 0;
-        vkCmdBindVertexBuffers(m_vulkanPrimaryCommandBuffer, 0, 1, &m_vulkanFloorVertexBuffer.m_buffer, &vertexOffset);
-        vkCmdBindIndexBuffer(m_vulkanPrimaryCommandBuffer, m_vulkanFloorIndexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdDrawIndexed(m_vulkanPrimaryCommandBuffer, m_floorMesh.indexCount, 1, 0, 0, 0);
-    }
-
-    vkCmdEndRenderPass(m_vulkanPrimaryCommandBuffer);
+    Render_MeshRenderPass(m_wireframe ? m_wireframeMeshRenderPass : m_defaultMeshRenderPass, m_vulkanPrimaryCommandBuffer, m_renderObjects);
 
     BeginRender_ImGuiRenderPass(m_imGuiRenderPass);
     OnImGui();
@@ -1032,7 +403,10 @@ void DuckDemoGame::OnRender()
 
 void DuckDemoGame::OnImGui()
 {
-    ImGui::Begin("test");
-    ImGui::Text("Andrew was here");
+    ImGui::Begin("Options");
+    if (ImGui::RadioButton("Wireframe", m_wireframe))
+    {
+        m_wireframe = !m_wireframe;
+    }
     ImGui::End();
 }
