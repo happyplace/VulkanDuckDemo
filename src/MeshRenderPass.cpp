@@ -446,9 +446,9 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     pipelineMultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
 
     VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState;
-    pipelineColorBlendAttachmentState.blendEnable = VK_FALSE;
-    pipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-    pipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    pipelineColorBlendAttachmentState.blendEnable = meshRenderPassParams.m_transparencyBlending ? VK_TRUE : VK_FALSE;
+    pipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    pipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     pipelineColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
     pipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     pipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;

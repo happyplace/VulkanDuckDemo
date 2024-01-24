@@ -27,6 +27,7 @@ struct MeshRenderPass
 struct MeshRenderPassParams
 {
     bool m_wireframe = false;
+    bool m_transparencyBlending = false;
     uint32_t m_maxRenderObjectCount = 2;
 };
 

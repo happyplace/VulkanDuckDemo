@@ -23,12 +23,14 @@ bool DuckDemoGame::OnInit()
         params.m_maxRenderObjectCount = 2;
 
         params.m_wireframe = false;
+        params.m_transparencyBlending = true;
         if (!Init_MeshRenderPass(m_defaultMeshRenderPass, params))
         {
             return false;
         }
 
         params.m_wireframe = true;
+        params.m_transparencyBlending = false;
         if (!Init_MeshRenderPass(m_wireframeMeshRenderPass, params))
         {
             return false;
