@@ -271,8 +271,8 @@ CameraInput DuckDemoGame::GetCameraInput()
             cameraInput.xMoveAxis -= 1.0f;
         }
 
-        cameraInput.cameraUp = keyboardState[SDL_SCANCODE_Q];
-        cameraInput.cameraDown = keyboardState[SDL_SCANCODE_E];
+        cameraInput.cameraUp |= keyboardState[SDL_SCANCODE_Q];
+        cameraInput.cameraDown |= keyboardState[SDL_SCANCODE_E];
 
         int mouseX;
         int mouseY;
