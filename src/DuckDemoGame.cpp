@@ -12,8 +12,10 @@ DuckDemoGame::~DuckDemoGame()
 {
     m_renderObjects.clear();
 
-    Free_MeshRenderPass(m_defaultMeshRenderPass);
-    Free_MeshRenderPass(m_wireframeMeshRenderPass);
+    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    {
+        Free_MeshRenderPass(meshRenderPass);
+    }
 }
 
 bool DuckDemoGame::OnInit()
@@ -24,14 +26,14 @@ bool DuckDemoGame::OnInit()
 
         params.m_wireframe = false;
         params.m_transparencyBlending = true;
-        if (!Init_MeshRenderPass(m_defaultMeshRenderPass, params))
+        if (!Init_MeshRenderPass(m_meshRenderPasses[MeshRenderPassType_Default], params))
         {
             return false;
         }
 
         params.m_wireframe = true;
         params.m_transparencyBlending = false;
-        if (!Init_MeshRenderPass(m_wireframeMeshRenderPass, params))
+        if (!Init_MeshRenderPass(m_meshRenderPasses[MeshRenderPassType_Wireframe], params))
         {
             return false;
         }
@@ -88,17 +90,14 @@ bool DuckDemoGame::OnInit()
 
 void DuckDemoGame::UpdateObjectBuffer(RenderObject& renderObject)
 {
-    FillVulkanBuffer(
-        m_defaultMeshRenderPass.m_vulkanObjectBuffer, 
-        &renderObject.objectBuf, 
-        sizeof(renderObject.objectBuf), 
-        CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
-
-    FillVulkanBuffer(
-        m_wireframeMeshRenderPass.m_vulkanObjectBuffer, 
-        &renderObject.objectBuf, 
-        sizeof(renderObject.objectBuf), 
-        CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
+    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    {
+        FillVulkanBuffer(
+            meshRenderPass.m_vulkanObjectBuffer, 
+            &renderObject.objectBuf, 
+            sizeof(renderObject.objectBuf), 
+            CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
+    }
 }
 
 void DuckDemoGame::UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath)
@@ -111,28 +110,27 @@ void DuckDemoGame::UpdateObjectTexture(RenderObject& renderObject, const std::st
         return;
     }
 
-    VkDescriptorImageInfo descriptorImageInfo;
-    descriptorImageInfo.sampler = nullptr;
-    descriptorImageInfo.imageView = renderObject.m_texture->m_imageView;
-    descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    {
+        VkDescriptorImageInfo descriptorImageInfo;
+        descriptorImageInfo.sampler = nullptr;
+        descriptorImageInfo.imageView = renderObject.m_texture->m_imageView;
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkWriteDescriptorSet sampledImageWriteDescriptorSet;
-    sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    sampledImageWriteDescriptorSet.pNext = nullptr;
-    sampledImageWriteDescriptorSet.dstSet = m_defaultMeshRenderPass.m_vulkanDescriptorSets[3];
-    sampledImageWriteDescriptorSet.dstBinding = 0;
-    sampledImageWriteDescriptorSet.dstArrayElement = renderObject.objectBuf.uTextureIndex;
-    sampledImageWriteDescriptorSet.descriptorCount = 1;
-    sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
-    sampledImageWriteDescriptorSet.pImageInfo = &descriptorImageInfo;
-    sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
+        VkWriteDescriptorSet sampledImageWriteDescriptorSet;
+        sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        sampledImageWriteDescriptorSet.pNext = nullptr;
+        sampledImageWriteDescriptorSet.dstSet = meshRenderPass.m_vulkanDescriptorSets[3];
+        sampledImageWriteDescriptorSet.dstBinding = 0;
+        sampledImageWriteDescriptorSet.dstArrayElement = renderObject.objectBuf.uTextureIndex;
+        sampledImageWriteDescriptorSet.descriptorCount = 1;
+        sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
+        sampledImageWriteDescriptorSet.pImageInfo = &descriptorImageInfo;
+        sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
 
-    vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
-
-    sampledImageWriteDescriptorSet.dstSet = m_wireframeMeshRenderPass.m_vulkanDescriptorSets[3];
-
-    vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+        vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+    }
 }
 
 void DuckDemoGame::UpdateModel(RenderObject& renderObject, const std::string& modelPath)
@@ -185,8 +183,10 @@ void DuckDemoGame::UpdateWaterPrimitive(RenderObject& renderObject, const float 
 
 void DuckDemoGame::OnResize()
 {
-    Resize_MeshRenderPass(m_defaultMeshRenderPass);
-    Resize_MeshRenderPass(m_wireframeMeshRenderPass);
+    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    {
+        Resize_MeshRenderPass(meshRenderPass);
+    }
 }
 
 CameraInput DuckDemoGame::GetCameraInput()
@@ -389,13 +389,16 @@ void DuckDemoGame::UpdateFrameBuffer()
     frameBuf.uPointLights[1].uFalloffStart = 30.0f;
     frameBuf.uPointLights[1].uFalloffEnd = 50.0f;
 
-    FillVulkanBuffer(m_defaultMeshRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
-    FillVulkanBuffer(m_wireframeMeshRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
+    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    {
+        FillVulkanBuffer(meshRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
+    }
 }
 
 void DuckDemoGame::OnRender()
 {
-    Render_MeshRenderPass(m_wireframe ? m_wireframeMeshRenderPass : m_defaultMeshRenderPass, m_vulkanPrimaryCommandBuffer, m_renderObjects);
+    MeshRenderPassType meshRenderPassType = m_wireframe ? MeshRenderPassType_Wireframe:  MeshRenderPassType_Default;
+    Render_MeshRenderPass(m_meshRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, m_renderObjects);
 
     BeginRender_ImGuiRenderPass(m_imGuiRenderPass);
     OnImGui();

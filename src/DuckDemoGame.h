@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <vector>
 
 #include "Game.h"
@@ -29,6 +30,13 @@ public:
     virtual ~DuckDemoGame() override;
 
 private:
+    enum MeshRenderPassType
+    {
+        MeshRenderPassType_Default = 0,
+        MeshRenderPassType_Wireframe,
+        MeshRenderPassType_COUNT,
+    };
+
     virtual bool OnInit() override;
     virtual void OnResize() override;
     virtual void OnUpdate(const GameTimer& gameTimer) override;
@@ -46,8 +54,7 @@ private:
 
     std::vector<RenderObject> m_renderObjects;
     
-    MeshRenderPass m_defaultMeshRenderPass;
-    MeshRenderPass m_wireframeMeshRenderPass;
+    std::array<MeshRenderPass, MeshRenderPassType_COUNT> m_meshRenderPasses;
 
     glm::quat m_cameraRotation;
     glm::vec3 m_cameraPosition;
