@@ -75,7 +75,7 @@ bool DuckDemoGame::OnInit()
 
         UpdateObjectBuffer(renderObject);
         UpdateObjectTexture(renderObject, "../rogue_texture.png");
-        UpdateCubePrimitive(renderObject, 500.0f, 5.0f, 500.0f);
+        UpdateWaterPrimitive(renderObject, 1000.0f, 1000.0f, 50, 50);
     }
 
     m_cameraRotationX = 0.0f;
@@ -163,13 +163,12 @@ void DuckDemoGame::UpdateModel(RenderObject& renderObject, const std::string& mo
     renderObject.m_indexCount = mesh.indexCount;
 }
 
-void DuckDemoGame::UpdateCubePrimitive(RenderObject& renderObject, const float width, const float height, const float depth)
+void DuckDemoGame::UpdateWaterPrimitive(RenderObject& renderObject, const float width, const float depth, const uint32_t gridX, const uint32_t gridY)
 {
     MeshLoader::Mesh mesh;
-    if (!MeshLoader::Loader::LoadCubePrimitive(mesh, width, height, depth))
+    if (!MeshLoader::Loader::LoadGridPrimitive(width, depth, gridX, gridY, mesh))
     {
         DUCK_DEMO_ASSERT(false);
-        return;
     }
 
     renderObject.m_vertexBuffer.reset(new VulkanBuffer());

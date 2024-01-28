@@ -40,7 +40,7 @@ private:
     void UpdateObjectBuffer(RenderObject& renderObject);
     void UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath);
     void UpdateModel(RenderObject& renderObject, const std::string& modelPath);
-    void UpdateCubePrimitive(RenderObject& renderObject, const float width, const float height, const float depth);
+    void UpdateWaterPrimitive(RenderObject& renderObject, const float width, const float depth, const uint32_t gridX, const uint32_t gridY);
 
     CameraInput GetCameraInput();
 
