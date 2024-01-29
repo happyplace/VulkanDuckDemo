@@ -13,6 +13,7 @@
 #include "MeshRenderPass.h"
 #include "DuckDemoGameDefines.h"
 #include "RenderObject.h"
+#include "WaterRenderPass.h"
 
 struct CameraInput
 {
@@ -30,11 +31,11 @@ public:
     virtual ~DuckDemoGame() override;
 
 private:
-    enum MeshRenderPassType
+    enum RenderPassType
     {
-        MeshRenderPassType_Default = 0,
-        MeshRenderPassType_Wireframe,
-        MeshRenderPassType_COUNT,
+        RenderPassType_Default = 0,
+        RenderPassType_Wireframe,
+        RenderPassType_COUNT,
     };
 
     virtual bool OnInit() override;
@@ -45,16 +46,18 @@ private:
     void OnImGui();
 
     void UpdateFrameBuffer();
-    void UpdateObjectBuffer(RenderObject& renderObject);
-    void UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath);
+    void UpdateObjectBuffer(RenderObject& renderObject, const bool waterPass = false);
+    void UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath, const bool waterPass = false);
     void UpdateModel(RenderObject& renderObject, const std::string& modelPath);
     void UpdateWaterPrimitive(RenderObject& renderObject, const float width, const float depth, const uint32_t gridX, const uint32_t gridY);
 
     CameraInput GetCameraInput();
 
-    std::vector<RenderObject> m_renderObjects;
+    RenderObject m_duckRenderObject;
+    RenderObject m_waterRenderObject;
     
-    std::array<MeshRenderPass, MeshRenderPassType_COUNT> m_meshRenderPasses;
+    std::array<MeshRenderPass, RenderPassType_COUNT> m_meshRenderPasses;
+    std::array<WaterRenderPass, RenderPassType_COUNT> m_waterRenderPasses;
 
     glm::quat m_cameraRotation;
     glm::vec3 m_cameraPosition;

@@ -39,7 +39,7 @@ layout(std140, set = 0, binding = 0) uniform FrameBuf
 } Frame;
 
 layout(set = 2, binding = 0) uniform sampler samplerColour;
-layout(set = 3, binding = 0) uniform texture2D sampledTexture[2];
+layout(set = 3, binding = 0) uniform texture2D sampledTexture[MAX_SAMPLED_TEXTURE_COUNT];
 
 layout(std140, set = 1, binding = 0) uniform ObjectBuf
 {

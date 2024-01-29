@@ -27,6 +27,7 @@ set(vdd-src
     "src/MeshRenderPass.cpp"
     "src/VulkanBuffer.cpp"
     "src/VulkanTexture.cpp"
+    "src/WaterRenderPass.cpp"
 )
 
 include_directories(SYSTEM external/glm)

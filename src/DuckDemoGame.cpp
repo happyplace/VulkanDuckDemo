@@ -10,11 +10,14 @@
 
 DuckDemoGame::~DuckDemoGame()
 {
-    m_renderObjects.clear();
-
     for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
     {
         Free_MeshRenderPass(meshRenderPass);
+    }
+
+    for (WaterRenderPass& waterRenderPass : m_waterRenderPasses)
+    {
+        Free_WaterRenderPass(waterRenderPass);
     }
 }
 
@@ -22,27 +25,43 @@ bool DuckDemoGame::OnInit()
 {
     {
         MeshRenderPassParams params;
-        params.m_maxRenderObjectCount = 2;
+        params.m_maxRenderObjectCount = 1;
 
         params.m_wireframe = false;
         params.m_transparencyBlending = true;
-        if (!Init_MeshRenderPass(m_meshRenderPasses[MeshRenderPassType_Default], params))
+        if (!Init_MeshRenderPass(m_meshRenderPasses[RenderPassType_Default], params))
         {
             return false;
         }
 
         params.m_wireframe = true;
         params.m_transparencyBlending = false;
-        if (!Init_MeshRenderPass(m_meshRenderPasses[MeshRenderPassType_Wireframe], params))
+        if (!Init_MeshRenderPass(m_meshRenderPasses[RenderPassType_Wireframe], params))
         {
             return false;
         }
     }
 
     {
-        m_renderObjects.emplace_back();
-        RenderObject& renderObject = m_renderObjects[m_renderObjects.size() - 1];
-        renderObject.objectBufferIndex = static_cast<int32_t>(m_renderObjects.size() - 1);
+        WaterRenderPassParams params;
+        params.m_maxRenderObjectCount = 1;
+
+        params.m_wireframe = false;
+        if (!Init_WaterRenderPass(m_waterRenderPasses[RenderPassType_Default], params))
+        {
+            return false;
+        }
+
+        params.m_wireframe = true;
+        if (!Init_WaterRenderPass(m_waterRenderPasses[RenderPassType_Wireframe], params))
+        {
+            return false;
+        }
+    }
+
+    {
+        RenderObject& renderObject = m_duckRenderObject;
+        renderObject.objectBufferIndex = 0;
 
         const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
         const glm::vec3 objectScale = glm::vec3(1.0f);
@@ -55,14 +74,13 @@ bool DuckDemoGame::OnInit()
         renderObject.objectBuf.uRoughness = 0.2f;
         renderObject.objectBuf.uTextureIndex = static_cast<uint>(renderObject.objectBufferIndex);
 
-        UpdateObjectBuffer(renderObject);
-        UpdateObjectTexture(renderObject, "../kachujin_g_rosales/Kachujin_diffuse.png");
+        UpdateObjectBuffer(renderObject, false);
+        UpdateObjectTexture(renderObject, "../kachujin_g_rosales/Kachujin_diffuse.png", false);
         UpdateModel(renderObject, "../kachujin_g_rosales/kachujin_g_rosales.fbx");
     }
     {
-        m_renderObjects.emplace_back();
-        RenderObject& renderObject = m_renderObjects[m_renderObjects.size() - 1];
-        renderObject.objectBufferIndex = static_cast<int32_t>(m_renderObjects.size() - 1);
+        RenderObject& renderObject = m_waterRenderObject;
+        renderObject.objectBufferIndex = 0;
 
         const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
         const glm::vec3 objectScale = glm::vec3(1.0f);
@@ -75,8 +93,8 @@ bool DuckDemoGame::OnInit()
         renderObject.objectBuf.uRoughness = 0.2f;
         renderObject.objectBuf.uTextureIndex = static_cast<uint>(renderObject.objectBufferIndex);
 
-        UpdateObjectBuffer(renderObject);
-        UpdateObjectTexture(renderObject, "../rogue_texture.png");
+        UpdateObjectBuffer(renderObject, true);
+        UpdateObjectTexture(renderObject, "../rogue_texture.png", true);
         UpdateWaterPrimitive(renderObject, 1000.0f, 1000.0f, 50, 50);
     }
 
@@ -88,19 +106,33 @@ bool DuckDemoGame::OnInit()
     return true;
 }
 
-void DuckDemoGame::UpdateObjectBuffer(RenderObject& renderObject)
+void DuckDemoGame::UpdateObjectBuffer(RenderObject& renderObject, const bool waterPass /* = false */)
 {
-    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    if (waterPass)
     {
-        FillVulkanBuffer(
-            meshRenderPass.m_vulkanObjectBuffer, 
-            &renderObject.objectBuf, 
-            sizeof(renderObject.objectBuf), 
-            CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
+        for (WaterRenderPass& waterRenderPass : m_waterRenderPasses)
+        {
+            FillVulkanBuffer(
+                waterRenderPass.m_vulkanObjectBuffer, 
+                &renderObject.objectBuf, 
+                sizeof(renderObject.objectBuf), 
+                CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
+        }
+    }
+    else
+    {
+        for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+        {
+            FillVulkanBuffer(
+                meshRenderPass.m_vulkanObjectBuffer, 
+                &renderObject.objectBuf, 
+                sizeof(renderObject.objectBuf), 
+                CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex);
+        }
     }
 }
 
-void DuckDemoGame::UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath)
+void DuckDemoGame::UpdateObjectTexture(RenderObject& renderObject, const std::string& texturePath, const bool waterPass /* = false */)
 {
     renderObject.m_texture.reset(new VulkanTexture());
     VkResult result = CreateVulkanTexture(texturePath, *renderObject.m_texture.get());
@@ -110,26 +142,37 @@ void DuckDemoGame::UpdateObjectTexture(RenderObject& renderObject, const std::st
         return;
     }
 
-    for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+    VkDescriptorImageInfo descriptorImageInfo;
+    descriptorImageInfo.sampler = nullptr;
+    descriptorImageInfo.imageView = renderObject.m_texture->m_imageView;
+    descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet sampledImageWriteDescriptorSet;
+    sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    sampledImageWriteDescriptorSet.pNext = nullptr;
+    sampledImageWriteDescriptorSet.dstBinding = 0;
+    sampledImageWriteDescriptorSet.dstArrayElement = renderObject.objectBuf.uTextureIndex;
+    sampledImageWriteDescriptorSet.descriptorCount = 1;
+    sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
+    sampledImageWriteDescriptorSet.pImageInfo = &descriptorImageInfo;
+    sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
+
+    if (waterPass)
     {
-        VkDescriptorImageInfo descriptorImageInfo;
-        descriptorImageInfo.sampler = nullptr;
-        descriptorImageInfo.imageView = renderObject.m_texture->m_imageView;
-        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        VkWriteDescriptorSet sampledImageWriteDescriptorSet;
-        sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sampledImageWriteDescriptorSet.pNext = nullptr;
-        sampledImageWriteDescriptorSet.dstSet = meshRenderPass.m_vulkanDescriptorSets[3];
-        sampledImageWriteDescriptorSet.dstBinding = 0;
-        sampledImageWriteDescriptorSet.dstArrayElement = renderObject.objectBuf.uTextureIndex;
-        sampledImageWriteDescriptorSet.descriptorCount = 1;
-        sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
-        sampledImageWriteDescriptorSet.pImageInfo = &descriptorImageInfo;
-        sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
-
-        vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+        for (WaterRenderPass& waterRenderPass : m_waterRenderPasses)
+        {
+            sampledImageWriteDescriptorSet.dstSet = waterRenderPass.m_vulkanDescriptorSets[3];
+            vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+        }
+    }
+    else
+    {
+        for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
+        {
+            sampledImageWriteDescriptorSet.dstSet = meshRenderPass.m_vulkanDescriptorSets[3];
+            vkUpdateDescriptorSets(m_vulkanDevice, 1, &sampledImageWriteDescriptorSet, 0, nullptr);
+        }
     }
 }
 
@@ -186,6 +229,11 @@ void DuckDemoGame::OnResize()
     for (MeshRenderPass& meshRenderPass : m_meshRenderPasses)
     {
         Resize_MeshRenderPass(meshRenderPass);
+    }
+
+    for (WaterRenderPass& waterRenderPass : m_waterRenderPasses)
+    {
+        Resize_WaterRenderPass(waterRenderPass);
     }
 }
 
@@ -393,12 +441,29 @@ void DuckDemoGame::UpdateFrameBuffer()
     {
         FillVulkanBuffer(meshRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
     }
+    
+    for (WaterRenderPass& waterRenderPass : m_waterRenderPasses)
+    {
+        FillVulkanBuffer(waterRenderPass.m_vulkanFrameBuffer, &frameBuf, sizeof(frameBuf));
+    }
 }
 
 void DuckDemoGame::OnRender()
 {
-    MeshRenderPassType meshRenderPassType = m_wireframe ? MeshRenderPassType_Wireframe:  MeshRenderPassType_Default;
-    Render_MeshRenderPass(m_meshRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, m_renderObjects);
+    const RenderPassType meshRenderPassType = m_wireframe ? RenderPassType_Wireframe : RenderPassType_Default;
+
+    {
+        std::vector<RenderObject> renderObjects;
+        renderObjects.push_back(m_duckRenderObject);
+        Render_MeshRenderPass(m_meshRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, renderObjects);
+    }
+
+
+    {
+        std::vector<RenderObject> renderObjects;
+        renderObjects.push_back(m_waterRenderObject);
+        Render_WaterRenderPass(m_waterRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, renderObjects);
+    }
 
     BeginRender_ImGuiRenderPass(m_imGuiRenderPass);
     OnImGui();

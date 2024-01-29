@@ -1,14 +1,14 @@
-#include "MeshRenderPass.h"
+#include "WaterRenderPass.h"
 
 #include "Game.h"
 #include "DuckDemoUtils.h"
 #include "DuckDemoGame.h"
 
 
-bool InitFrameBuffers(MeshRenderPass& meshRenderPass);
-void DestroyFrameBuffers(MeshRenderPass& meshRenderPass);
+bool InitFrameBuffers(WaterRenderPass& waterRenderPass);
+void DestroyFrameBuffers(WaterRenderPass& waterRenderPass);
 
-bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassParams& meshRenderPassParams)
+bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPassParams& waterRenderPassParams)
 {
     VkResult result = VK_SUCCESS;
 
@@ -17,21 +17,21 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     attachmentDescriptions[0].flags = 0;
     attachmentDescriptions[0].format = Game::Get()->GetVulkanSwapchainPixelFormat();
     attachmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     attachmentDescriptions[1].flags = 0;
     attachmentDescriptions[1].format = VK_FORMAT_D32_SFLOAT_S8_UINT;
     attachmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colourAttachmentReference;
@@ -76,9 +76,9 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     renderPassCreateInfo.dependencyCount = 0;
     renderPassCreateInfo.pDependencies = nullptr;
 
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateRenderPass(Game::Get()->GetVulkanDevice(), &renderPassCreateInfo, s_allocator, &meshRenderPass.m_vulkanRenderPass));
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateRenderPass(Game::Get()->GetVulkanDevice(), &renderPassCreateInfo, s_allocator, &waterRenderPass.m_vulkanRenderPass));
 
-    if (!InitFrameBuffers(meshRenderPass))
+    if (!InitFrameBuffers(waterRenderPass))
     {
         return false;
     }
@@ -91,7 +91,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     descriptorPoolSize[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
     descriptorPoolSize[2].descriptorCount = 1;
     descriptorPoolSize[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    descriptorPoolSize[3].descriptorCount = meshRenderPassParams.m_maxRenderObjectCount;
+    descriptorPoolSize[3].descriptorCount = waterRenderPassParams.m_maxRenderObjectCount;
 
     VkPhysicalDeviceFeatures physicalDeviceFeatures;
     vkGetPhysicalDeviceFeatures(Game::Get()->GetVulkanPhysicalDevice(), &physicalDeviceFeatures);
@@ -126,7 +126,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     samplerCreateInfo.maxLod = 0.0f;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateSampler(Game::Get()->GetVulkanDevice(), &samplerCreateInfo, s_allocator, &meshRenderPass.m_vulkanSampler));
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateSampler(Game::Get()->GetVulkanDevice(), &samplerCreateInfo, s_allocator, &waterRenderPass.m_vulkanSampler));
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
     descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -136,15 +136,15 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSize.size());
     descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSize.data();
 
-    result = vkCreateDescriptorPool(Game::Get()->GetVulkanDevice(), &descriptorPoolCreateInfo, s_allocator, &meshRenderPass.m_vulkanDescriptorPool);
+    result = vkCreateDescriptorPool(Game::Get()->GetVulkanDevice(), &descriptorPoolCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorPool);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
         return false;
     }
 
-    DUCK_DEMO_VULKAN_ASSERT(Game::Get()->CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, meshRenderPass.m_vulkanFrameBuffer));
-    DUCK_DEMO_VULKAN_ASSERT(Game::Get()->CreateVulkanBuffer(static_cast<VkDeviceSize>(Game::Get()->CalculateUniformBufferSize(sizeof(ObjectBuf)) * meshRenderPassParams.m_maxRenderObjectCount), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, meshRenderPass.m_vulkanObjectBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(Game::Get()->CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(FrameBuf)),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, waterRenderPass.m_vulkanFrameBuffer));
+    DUCK_DEMO_VULKAN_ASSERT(Game::Get()->CreateVulkanBuffer(static_cast<VkDeviceSize>(Game::Get()->CalculateUniformBufferSize(sizeof(ObjectBuf)) * waterRenderPassParams.m_maxRenderObjectCount), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, waterRenderPass.m_vulkanObjectBuffer));
 
     VkDescriptorSetLayoutBinding frameBufDescriptorSetLayoutBindings;
     frameBufDescriptorSetLayoutBindings.binding = 0;
@@ -165,12 +165,12 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     samplerDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     samplerDescriptorSetLayoutBindings.descriptorCount = 1;
     samplerDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    samplerDescriptorSetLayoutBindings.pImmutableSamplers = &meshRenderPass.m_vulkanSampler;
+    samplerDescriptorSetLayoutBindings.pImmutableSamplers = &waterRenderPass.m_vulkanSampler;
 
     VkDescriptorSetLayoutBinding sampledImageDescriptorSetLayoutBindings;
     sampledImageDescriptorSetLayoutBindings.binding = 0;
     sampledImageDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    sampledImageDescriptorSetLayoutBindings.descriptorCount = meshRenderPassParams.m_maxRenderObjectCount;
+    sampledImageDescriptorSetLayoutBindings.descriptorCount = waterRenderPassParams.m_maxRenderObjectCount;
     sampledImageDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     sampledImageDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
 
@@ -202,28 +202,28 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     sampledImageDescriptorSetLayoutCreateInfo.bindingCount = 1;
     sampledImageDescriptorSetLayoutCreateInfo.pBindings = &sampledImageDescriptorSetLayoutBindings;
 
-    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &frameBufDescriptorSetLayoutCreateInfo, s_allocator, &meshRenderPass.m_vulkanDescriptorSetLayouts[0]);
+    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &frameBufDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[0]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
         return false;
     }
 
-    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &objectBufDescriptorSetLayoutCreateInfo, s_allocator, &meshRenderPass.m_vulkanDescriptorSetLayouts[1]);
+    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &objectBufDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[1]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
         return false;
     }
 
-    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &samplerDescriptorSetLayoutCreateInfo, s_allocator, &meshRenderPass.m_vulkanDescriptorSetLayouts[2]);
+    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &samplerDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[2]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
         return false;
     }
 
-    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &sampledImageDescriptorSetLayoutCreateInfo, s_allocator, &meshRenderPass.m_vulkanDescriptorSetLayouts[3]);
+    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &sampledImageDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[3]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -233,31 +233,31 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptorSetAllocateInfo.pNext = nullptr;
-    descriptorSetAllocateInfo.descriptorPool = meshRenderPass.m_vulkanDescriptorPool;
-    descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(meshRenderPass.m_vulkanDescriptorSetLayouts.size());
-    descriptorSetAllocateInfo.pSetLayouts = meshRenderPass.m_vulkanDescriptorSetLayouts.data();
+    descriptorSetAllocateInfo.descriptorPool = waterRenderPass.m_vulkanDescriptorPool;
+    descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(waterRenderPass.m_vulkanDescriptorSetLayouts.size());
+    descriptorSetAllocateInfo.pSetLayouts = waterRenderPass.m_vulkanDescriptorSetLayouts.data();
 
-    DUCK_DEMO_VULKAN_ASSERT(vkAllocateDescriptorSets(Game::Get()->GetVulkanDevice(), &descriptorSetAllocateInfo, meshRenderPass.m_vulkanDescriptorSets.data()));
+    DUCK_DEMO_VULKAN_ASSERT(vkAllocateDescriptorSets(Game::Get()->GetVulkanDevice(), &descriptorSetAllocateInfo, waterRenderPass.m_vulkanDescriptorSets.data()));
 
     VkDescriptorBufferInfo frameBufDescriptorBufferInfo;
-    frameBufDescriptorBufferInfo.buffer = meshRenderPass.m_vulkanFrameBuffer.m_buffer;
+    frameBufDescriptorBufferInfo.buffer = waterRenderPass.m_vulkanFrameBuffer.m_buffer;
     frameBufDescriptorBufferInfo.offset = 0;
     frameBufDescriptorBufferInfo.range = sizeof(FrameBuf);
 
     VkDescriptorBufferInfo objectBufDescriptorBufferInfo;
-    objectBufDescriptorBufferInfo.buffer = meshRenderPass.m_vulkanObjectBuffer.m_buffer;
+    objectBufDescriptorBufferInfo.buffer = waterRenderPass.m_vulkanObjectBuffer.m_buffer;
     objectBufDescriptorBufferInfo.offset = 0;
     objectBufDescriptorBufferInfo.range = sizeof(ObjectBuf);
 
     VkDescriptorImageInfo samplerDescriptorImageInfo;
-    samplerDescriptorImageInfo.sampler = meshRenderPass.m_vulkanSampler;
+    samplerDescriptorImageInfo.sampler = waterRenderPass.m_vulkanSampler;
     samplerDescriptorImageInfo.imageView = nullptr;
     samplerDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet frameBufWriteDescriptorSet;
     frameBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     frameBufWriteDescriptorSet.pNext = nullptr;
-    frameBufWriteDescriptorSet.dstSet = meshRenderPass.m_vulkanDescriptorSets[0];
+    frameBufWriteDescriptorSet.dstSet = waterRenderPass.m_vulkanDescriptorSets[0];
     frameBufWriteDescriptorSet.dstBinding = 0;
     frameBufWriteDescriptorSet.dstArrayElement = 0;
     frameBufWriteDescriptorSet.descriptorCount = 1;
@@ -269,7 +269,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     VkWriteDescriptorSet objectBufWriteDescriptorSet;
     objectBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     objectBufWriteDescriptorSet.pNext = nullptr;
-    objectBufWriteDescriptorSet.dstSet = meshRenderPass.m_vulkanDescriptorSets[1];
+    objectBufWriteDescriptorSet.dstSet = waterRenderPass.m_vulkanDescriptorSets[1];
     objectBufWriteDescriptorSet.dstBinding = 0;
     objectBufWriteDescriptorSet.dstArrayElement = 0;
     objectBufWriteDescriptorSet.descriptorCount = 1;
@@ -285,19 +285,19 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCreateInfo.pNext = nullptr;
     pipelineLayoutCreateInfo.flags = 0;
-    pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(meshRenderPass.m_vulkanDescriptorSetLayouts.size());
-    pipelineLayoutCreateInfo.pSetLayouts = meshRenderPass.m_vulkanDescriptorSetLayouts.data();
+    pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(waterRenderPass.m_vulkanDescriptorSetLayouts.size());
+    pipelineLayoutCreateInfo.pSetLayouts = waterRenderPass.m_vulkanDescriptorSetLayouts.data();
     pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
     pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
-    result = vkCreatePipelineLayout(Game::Get()->GetVulkanDevice(), &pipelineLayoutCreateInfo, s_allocator, &meshRenderPass.m_vulkanPipelineLayout);
+    result = vkCreatePipelineLayout(Game::Get()->GetVulkanDevice(), &pipelineLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanPipelineLayout);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
         return false;
     }
 
-    result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.vert", shaderc_glsl_vertex_shader, &meshRenderPass.m_vertexShader);
+    result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.vert", shaderc_glsl_vertex_shader, &waterRenderPass.m_vertexShader);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -311,7 +311,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
         return false;
     }
 
-    if (meshRenderPassParams.m_wireframe)
+    if (waterRenderPassParams.m_wireframe)
     {
         std::string isWireframe = "IS_WIREFRAME";
         shaderc_compile_options_add_macro_definition(compileOptions, isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
@@ -330,12 +330,12 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     shaderc_compile_options_add_macro_definition(compileOptions, useTexture.c_str(), static_cast<size_t>(useTexture.size()), nullptr, 0);
 
     const std::string maxSampledTextureCount = "MAX_SAMPLED_TEXTURE_COUNT";
-    const std::string maxSampledTextureCountValue = std::to_string(meshRenderPassParams.m_maxRenderObjectCount);
+    const std::string maxSampledTextureCountValue = std::to_string(waterRenderPassParams.m_maxRenderObjectCount);
     shaderc_compile_options_add_macro_definition(compileOptions, 
         maxSampledTextureCount.c_str(), static_cast<size_t>(maxSampledTextureCount.size()), 
         maxSampledTextureCountValue.c_str(),  static_cast<size_t>(maxSampledTextureCountValue.size()));
 
-    result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &meshRenderPass.m_fragmentShader, compileOptions);
+    result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &waterRenderPass.m_fragmentShader, compileOptions);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -347,7 +347,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     pipelineShaderStageCreateInfo[0].pNext = nullptr;
     pipelineShaderStageCreateInfo[0].flags = 0;
     pipelineShaderStageCreateInfo[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    pipelineShaderStageCreateInfo[0].module = meshRenderPass.m_vertexShader;
+    pipelineShaderStageCreateInfo[0].module = waterRenderPass.m_vertexShader;
     pipelineShaderStageCreateInfo[0].pName = "main";
     pipelineShaderStageCreateInfo[0].pSpecializationInfo = nullptr;
 
@@ -355,7 +355,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     pipelineShaderStageCreateInfo[1].pNext = nullptr;
     pipelineShaderStageCreateInfo[1].flags = 0;
     pipelineShaderStageCreateInfo[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    pipelineShaderStageCreateInfo[1].module = meshRenderPass.m_fragmentShader;
+    pipelineShaderStageCreateInfo[1].module = waterRenderPass.m_fragmentShader;
     pipelineShaderStageCreateInfo[1].pName = "main";
     pipelineShaderStageCreateInfo[1].pSpecializationInfo = nullptr;
 
@@ -431,8 +431,8 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     pipelineRasterizationStateCreateInfo.flags = 0;
     pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-    pipelineRasterizationStateCreateInfo.polygonMode = meshRenderPassParams.m_wireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-    pipelineRasterizationStateCreateInfo.cullMode = meshRenderPassParams.m_wireframe ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+    pipelineRasterizationStateCreateInfo.polygonMode = waterRenderPassParams.m_wireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+    pipelineRasterizationStateCreateInfo.cullMode = waterRenderPassParams.m_wireframe ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
     pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
     pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -452,7 +452,7 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     pipelineMultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
 
     VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState;
-    pipelineColorBlendAttachmentState.blendEnable = meshRenderPassParams.m_transparencyBlending ? VK_TRUE : VK_FALSE;
+    pipelineColorBlendAttachmentState.blendEnable = VK_TRUE;
     pipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
     pipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     pipelineColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
@@ -534,13 +534,13 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     graphicsPipelineCreateInfo.pDepthStencilState = &pipelineDepthStencilStateCreateInfo;
     graphicsPipelineCreateInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
     graphicsPipelineCreateInfo.pDynamicState = &pipelineDynamicStateCreateInfo;
-    graphicsPipelineCreateInfo.layout = meshRenderPass.m_vulkanPipelineLayout;
-    graphicsPipelineCreateInfo.renderPass = meshRenderPass.m_vulkanRenderPass;
+    graphicsPipelineCreateInfo.layout = waterRenderPass.m_vulkanPipelineLayout;
+    graphicsPipelineCreateInfo.renderPass = waterRenderPass.m_vulkanRenderPass;
     graphicsPipelineCreateInfo.subpass = 0;
     graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
     graphicsPipelineCreateInfo.basePipelineIndex = 0;
 
-    result = vkCreateGraphicsPipelines(Game::Get()->GetVulkanDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, s_allocator, &meshRenderPass.m_vulkanPipeline);
+    result = vkCreateGraphicsPipelines(Game::Get()->GetVulkanDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, s_allocator, &waterRenderPass.m_vulkanPipeline);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -550,60 +550,60 @@ bool Init_MeshRenderPass(MeshRenderPass& meshRenderPass, const MeshRenderPassPar
     return true;
 }
 
-void Free_MeshRenderPass(MeshRenderPass& meshRenderPass)
+void Free_WaterRenderPass(WaterRenderPass& waterRenderPass)
 {
-    meshRenderPass.m_vulkanFrameBuffer.Reset();
-    meshRenderPass.m_vulkanObjectBuffer.Reset();
+    waterRenderPass.m_vulkanFrameBuffer.Reset();
+    waterRenderPass.m_vulkanObjectBuffer.Reset();
 
-    if (meshRenderPass.m_vulkanSampler)
+    if (waterRenderPass.m_vulkanSampler)
     {
-        vkDestroySampler(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vulkanSampler, s_allocator);
+        vkDestroySampler(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vulkanSampler, s_allocator);
     }
 
-    if (meshRenderPass.m_vulkanPipeline)
+    if (waterRenderPass.m_vulkanPipeline)
     {
-        vkDestroyPipeline(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vulkanPipeline, s_allocator);
+        vkDestroyPipeline(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vulkanPipeline, s_allocator);
     }
 
-    if (meshRenderPass.m_vertexShader)
+    if (waterRenderPass.m_vertexShader)
     {
-        vkDestroyShaderModule(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vertexShader, s_allocator);
+        vkDestroyShaderModule(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vertexShader, s_allocator);
     }
 
-    if (meshRenderPass.m_fragmentShader)
+    if (waterRenderPass.m_fragmentShader)
     {
-        vkDestroyShaderModule(Game::Get()->GetVulkanDevice(), meshRenderPass.m_fragmentShader, s_allocator);
+        vkDestroyShaderModule(Game::Get()->GetVulkanDevice(), waterRenderPass.m_fragmentShader, s_allocator);
     }
 
-    if (meshRenderPass.m_vulkanPipelineLayout)
+    if (waterRenderPass.m_vulkanPipelineLayout)
     {
-        vkDestroyPipelineLayout(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vulkanPipelineLayout, s_allocator);
+        vkDestroyPipelineLayout(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vulkanPipelineLayout, s_allocator);
     }
 
-    for (std::size_t i = 0; i < meshRenderPass.m_vulkanDescriptorSetLayouts.size(); ++i)
+    for (std::size_t i = 0; i < waterRenderPass.m_vulkanDescriptorSetLayouts.size(); ++i)
     {
-        if (meshRenderPass.m_vulkanDescriptorSetLayouts[i])
+        if (waterRenderPass.m_vulkanDescriptorSetLayouts[i])
         {
-            vkDestroyDescriptorSetLayout(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vulkanDescriptorSetLayouts[i], s_allocator);
+            vkDestroyDescriptorSetLayout(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vulkanDescriptorSetLayouts[i], s_allocator);
         }
     }
 
-    if (meshRenderPass.m_vulkanDescriptorPool)
+    if (waterRenderPass.m_vulkanDescriptorPool)
     {
-        vkDestroyDescriptorPool(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vulkanDescriptorPool, s_allocator);
+        vkDestroyDescriptorPool(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vulkanDescriptorPool, s_allocator);
     }
 
-    DestroyFrameBuffers(meshRenderPass);
+    DestroyFrameBuffers(waterRenderPass);
 
-    if (meshRenderPass.m_vulkanRenderPass)
+    if (waterRenderPass.m_vulkanRenderPass)
     {
-        vkDestroyRenderPass(Game::Get()->GetVulkanDevice(), meshRenderPass.m_vulkanRenderPass, s_allocator);
+        vkDestroyRenderPass(Game::Get()->GetVulkanDevice(), waterRenderPass.m_vulkanRenderPass, s_allocator);
     }
 }
 
-bool InitFrameBuffers(MeshRenderPass& meshRenderPass)
+bool InitFrameBuffers(WaterRenderPass& waterRenderPass)
 {
-    meshRenderPass.m_vulkanFrameBuffers.clear();
+    waterRenderPass.m_vulkanFrameBuffers.clear();
 
     std::array<VkImageView, 2> attachments;
     attachments[1] = Game::Get()->GetVulkanDepthStencilImageView();
@@ -612,7 +612,7 @@ bool InitFrameBuffers(MeshRenderPass& meshRenderPass)
     frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     frameBufferCreateInfo.pNext = nullptr;
     frameBufferCreateInfo.flags = 0;
-    frameBufferCreateInfo.renderPass = meshRenderPass.m_vulkanRenderPass;
+    frameBufferCreateInfo.renderPass = waterRenderPass.m_vulkanRenderPass;
     frameBufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
     frameBufferCreateInfo.pAttachments = attachments.data();
     frameBufferCreateInfo.width = Game::Get()->GetVulkanSwapchainWidth();
@@ -626,47 +626,42 @@ bool InitFrameBuffers(MeshRenderPass& meshRenderPass)
         VkFramebuffer framebuffer;
         DUCK_DEMO_VULKAN_ASSERT(vkCreateFramebuffer(Game::Get()->GetVulkanDevice(), &frameBufferCreateInfo, s_allocator, &framebuffer));
 
-        meshRenderPass.m_vulkanFrameBuffers.push_back(framebuffer);
+        waterRenderPass.m_vulkanFrameBuffers.push_back(framebuffer);
     }
 
     return true;
 }
 
-void DestroyFrameBuffers(MeshRenderPass& meshRenderPass)
+void DestroyFrameBuffers(WaterRenderPass& waterRenderPass)
 {
-    for (VkFramebuffer frameBuffer : meshRenderPass.m_vulkanFrameBuffers)
+    for (VkFramebuffer frameBuffer : waterRenderPass.m_vulkanFrameBuffers)
     {
         vkDestroyFramebuffer(Game::Get()->GetVulkanDevice(), frameBuffer, s_allocator);
     }
 }
 
-void Resize_MeshRenderPass(MeshRenderPass& meshRenderPass)
+void Resize_WaterRenderPass(WaterRenderPass& waterRenderPass)
 {
-    DestroyFrameBuffers(meshRenderPass);
-    InitFrameBuffers(meshRenderPass);
+    DestroyFrameBuffers(waterRenderPass);
+    InitFrameBuffers(waterRenderPass);
 }
 
-void Render_MeshRenderPass(MeshRenderPass& meshRenderPass, VkCommandBuffer commandBuffer, const std::vector<RenderObject>& renderObjects)
+void Render_WaterRenderPass(WaterRenderPass& waterRenderPass, VkCommandBuffer commandBuffer, const std::vector<RenderObject>& renderObjects)
 {
-    std::array<VkClearValue, 2> clearValues;
-    clearValues[0] = Game::Get()->GetVulkanClearValue();
-    clearValues[1].depthStencil.depth = 1.0f;
-    clearValues[1].depthStencil.stencil = 0u;
-
     VkRenderPassBeginInfo renderPassBeginInfo;
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.pNext = nullptr;
-    renderPassBeginInfo.renderPass = meshRenderPass.m_vulkanRenderPass;
-    renderPassBeginInfo.framebuffer = meshRenderPass.m_vulkanFrameBuffers[Game::Get()->GetCurrentSwapchainImageIndex()];
+    renderPassBeginInfo.renderPass = waterRenderPass.m_vulkanRenderPass;
+    renderPassBeginInfo.framebuffer = waterRenderPass.m_vulkanFrameBuffers[Game::Get()->GetCurrentSwapchainImageIndex()];
     renderPassBeginInfo.renderArea.extent.width = Game::Get()->GetVulkanSwapchainWidth();
     renderPassBeginInfo.renderArea.extent.height = Game::Get()->GetVulkanSwapchainHeight();
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-    renderPassBeginInfo.pClearValues = clearValues.data();
+    renderPassBeginInfo.clearValueCount = 0;
+    renderPassBeginInfo.pClearValues = nullptr;
     vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshRenderPass.m_vulkanPipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipeline);
 
     VkViewport viewport;
     viewport.x = 0;
@@ -684,14 +679,14 @@ void Render_MeshRenderPass(MeshRenderPass& meshRenderPass, VkCommandBuffer comma
     scissor.extent.height = Game::Get()->GetVulkanSwapchainHeight();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshRenderPass.m_vulkanPipelineLayout, 0, 1, &meshRenderPass.m_vulkanDescriptorSets[0], 0, nullptr);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshRenderPass.m_vulkanPipelineLayout, 2, 1, &meshRenderPass.m_vulkanDescriptorSets[2], 0, nullptr);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshRenderPass.m_vulkanPipelineLayout, 3, 1, &meshRenderPass.m_vulkanDescriptorSets[3], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 0, 1, &waterRenderPass.m_vulkanDescriptorSets[0], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 2, 1, &waterRenderPass.m_vulkanDescriptorSets[2], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 3, 1, &waterRenderPass.m_vulkanDescriptorSets[3], 0, nullptr);
 
     for (const RenderObject& renderObject : renderObjects)
     {
         uint32_t dynamicOffsets = Game::Get()->CalculateUniformBufferSize(sizeof(renderObject.objectBuf)) * renderObject.objectBufferIndex;
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshRenderPass.m_vulkanPipelineLayout, 1, 1, &meshRenderPass.m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 1, 1, &waterRenderPass.m_vulkanDescriptorSets[1], 1, &dynamicOffsets);
 
         const VkDeviceSize vertexOffset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderObject.m_vertexBuffer->m_buffer, &vertexOffset);
