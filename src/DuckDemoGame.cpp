@@ -19,6 +19,8 @@ DuckDemoGame::~DuckDemoGame()
     {
         Free_WaterRenderPass(waterRenderPass);
     }
+
+    Free_WaterComputePass(m_waterComputePass);
 }
 
 bool DuckDemoGame::OnInit()
@@ -57,6 +59,13 @@ bool DuckDemoGame::OnInit()
         {
             return false;
         }
+    }
+
+    WaterComputePassParams waterComputePassParams;
+    waterComputePassParams.width = 1024;
+    if (!Init_WaterComputePass(m_waterComputePass, waterComputePassParams))
+    {
+        return false;
     }
 
     {
@@ -458,6 +467,7 @@ void DuckDemoGame::OnRender()
         Render_MeshRenderPass(m_meshRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, renderObjects);
     }
 
+    Compute_WaterComputePass(m_waterComputePass);
 
     {
         std::vector<RenderObject> renderObjects;

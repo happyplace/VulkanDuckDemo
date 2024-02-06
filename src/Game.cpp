@@ -424,6 +424,7 @@ bool Game::InitVulkanDevice()
     DUCK_DEMO_VULKAN_ASSERT(vkEnumeratePhysicalDevices(m_instance, &gpuCount, gpus.data()));
 
     int32_t graphicsQueueIndex = -1;
+    int32_t computeQueueIndex = -1;
     int8_t deviceTypeScore = -1;
 
     for (uint32_t i = 0; i < gpuCount; ++i)
@@ -451,7 +452,6 @@ bool Game::InitVulkanDevice()
                     m_vulkanPhysicalDevice = gpus[i];
                     graphicsQueueIndex = k;
                     deviceTypeScore = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-                    break;
                 }
                 else if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU && deviceTypeScore < VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
                 {
@@ -460,16 +460,28 @@ bool Game::InitVulkanDevice()
                     deviceTypeScore = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
                 }
             }
+
+            if (familyProperty.queueFlags & VK_QUEUE_COMPUTE_BIT)
+            {
+                computeQueueIndex = k;
+            }
         }
     }
 
     if (graphicsQueueIndex <= -1)
     {  
-        DUCK_DEMO_SHOW_ERROR("Vulkan Initialization Fail", "Did not find suitable queue which supports graphics, compute and presentation.");
+        DUCK_DEMO_SHOW_ERROR("Vulkan Initialization Fail", "Did not find suitable queue which supports graphics and presentation.");
+        return false;
+    }
+
+    if (computeQueueIndex <= -1)
+    {  
+        DUCK_DEMO_SHOW_ERROR("Vulkan Initialization Fail", "Did not find suitable queue which supports compute");
         return false;
     }
 
     m_vulkanGraphicsQueueIndex = static_cast<uint32_t>(graphicsQueueIndex);
+    m_vulkanComputeQueueIndex = static_cast<uint32_t>(computeQueueIndex);
 
     uint32_t deviceExtensionCount;
     DUCK_DEMO_VULKAN_ASSERT(vkEnumerateDeviceExtensionProperties(m_vulkanPhysicalDevice, nullptr, &deviceExtensionCount, nullptr));
@@ -499,14 +511,29 @@ bool Game::InitVulkanDevice()
         DUCK_DEMO_ASSERT(requestedExtensionAvailableOnDevice);
     }
 
-    VkDeviceQueueCreateInfo deviceQueueCreateInfo;
-    deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    deviceQueueCreateInfo.pNext = nullptr;
-    deviceQueueCreateInfo.flags = 0;
-    deviceQueueCreateInfo.queueCount = 1;
-    float queue_priority = 1.0f;
-    deviceQueueCreateInfo.pQueuePriorities = &queue_priority;
-    deviceQueueCreateInfo.queueFamilyIndex = m_vulkanGraphicsQueueIndex;
+    std::vector<VkDeviceQueueCreateInfo> deviceQueueCreateInfos;
+    {
+        VkDeviceQueueCreateInfo& deviceQueueCreateInfo = deviceQueueCreateInfos.emplace_back();
+        deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        deviceQueueCreateInfo.pNext = nullptr;
+        deviceQueueCreateInfo.flags = 0;
+        deviceQueueCreateInfo.queueCount = 1;
+        float queue_priority = 1.0f;
+        deviceQueueCreateInfo.pQueuePriorities = &queue_priority;
+        deviceQueueCreateInfo.queueFamilyIndex = m_vulkanGraphicsQueueIndex;
+    }
+
+    if (m_vulkanGraphicsQueueIndex != m_vulkanComputeQueueIndex)
+    {
+        VkDeviceQueueCreateInfo& deviceQueueCreateInfo = deviceQueueCreateInfos.emplace_back();
+        deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        deviceQueueCreateInfo.pNext = nullptr;
+        deviceQueueCreateInfo.flags = 0;
+        deviceQueueCreateInfo.queueCount = 1;
+        float queue_priority = 1.0f;
+        deviceQueueCreateInfo.pQueuePriorities = &queue_priority;
+        deviceQueueCreateInfo.queueFamilyIndex = m_vulkanComputeQueueIndex;
+    }
 
     VkPhysicalDeviceFeatures physicalDeviceFeatures;
     physicalDeviceFeatures.robustBufferAccess = VK_FALSE;
@@ -569,8 +596,8 @@ bool Game::InitVulkanDevice()
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceCreateInfo.pNext = nullptr;
     deviceCreateInfo.flags = 0;
-    deviceCreateInfo.queueCreateInfoCount = 1;
-    deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
+    deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(deviceQueueCreateInfos.size());
+    deviceCreateInfo.pQueueCreateInfos = deviceQueueCreateInfos.data();
     deviceCreateInfo.enabledLayerCount = 0;
     deviceCreateInfo.ppEnabledLayerNames = nullptr;
     deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensionNames.size());
@@ -1008,7 +1035,7 @@ VkResult Game::CreateVulkanBuffer(const VkDeviceSize deviceSize, const VkBufferU
     return result;
 }
 
-void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize, VkDeviceSize offset /*= 0*/)
+void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const std::size_t dataSize, const VkDeviceSize offset /*= 0*/)
 {
     //vkCmdUpdateBuffer( CommandBuffer, myBuffer.buffer, 0, myBuffer.size, data );
     //command buffer version
@@ -1018,6 +1045,14 @@ void Game::FillVulkanBuffer(VulkanBuffer& vulkanBuffer, const void* data, const 
     void* gpuMemory = nullptr;
     vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, offset, static_cast<VkDeviceSize>(dataSize), 0, &gpuMemory);
     memcpy(gpuMemory, data, std::min(dataSize, vulkanBuffer.m_deviceSize));
+    vkUnmapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory);
+}
+
+void Game::ZeroVulkanBuffer(VulkanBuffer& vulkanBuffer)
+{
+    void* gpuMemory = nullptr;
+    vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, 0, VK_WHOLE_SIZE, 0, &gpuMemory);
+    memset(gpuMemory, NULL, vulkanBuffer.m_deviceSize);
     vkUnmapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory);
 }
 

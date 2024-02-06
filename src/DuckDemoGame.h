@@ -14,6 +14,7 @@
 #include "DuckDemoGameDefines.h"
 #include "RenderObject.h"
 #include "WaterRenderPass.h"
+#include "WaterComputePass.h"
 
 struct CameraInput
 {
@@ -58,6 +59,7 @@ private:
     
     std::array<MeshRenderPass, RenderPassType_COUNT> m_meshRenderPasses;
     std::array<WaterRenderPass, RenderPassType_COUNT> m_waterRenderPasses;
+    WaterComputePass m_waterComputePass;
 
     glm::quat m_cameraRotation;
     glm::vec3 m_cameraPosition;
