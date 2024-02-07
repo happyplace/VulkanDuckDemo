@@ -3,7 +3,7 @@
 #include "Game.h"
 #include "DuckDemoUtils.h"
 #include "DuckDemoGame.h"
-
+#include "WaterComputePass.h"
 
 bool InitFrameBuffers(WaterRenderPass& waterRenderPass);
 void DestroyFrameBuffers(WaterRenderPass& waterRenderPass);
@@ -83,7 +83,7 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
         return false;
     }
 
-    std::array<VkDescriptorPoolSize, 4> descriptorPoolSize;
+    std::array<VkDescriptorPoolSize, 5> descriptorPoolSize;
     descriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorPoolSize[0].descriptorCount = 1;
     descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -92,6 +92,8 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     descriptorPoolSize[2].descriptorCount = 1;
     descriptorPoolSize[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     descriptorPoolSize[3].descriptorCount = waterRenderPassParams.m_maxRenderObjectCount;
+    descriptorPoolSize[4].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    descriptorPoolSize[4].descriptorCount = 1;
 
     VkPhysicalDeviceFeatures physicalDeviceFeatures;
     vkGetPhysicalDeviceFeatures(Game::Get()->GetVulkanPhysicalDevice(), &physicalDeviceFeatures);
@@ -164,7 +166,7 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     samplerDescriptorSetLayoutBindings.binding = 0;
     samplerDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     samplerDescriptorSetLayoutBindings.descriptorCount = 1;
-    samplerDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    samplerDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     samplerDescriptorSetLayoutBindings.pImmutableSamplers = &waterRenderPass.m_vulkanSampler;
 
     VkDescriptorSetLayoutBinding sampledImageDescriptorSetLayoutBindings;
@@ -173,6 +175,13 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     sampledImageDescriptorSetLayoutBindings.descriptorCount = waterRenderPassParams.m_maxRenderObjectCount;
     sampledImageDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     sampledImageDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutBinding waterHeightImageDescriptorSetLayoutBindings;
+    waterHeightImageDescriptorSetLayoutBindings.binding = 0;
+    waterHeightImageDescriptorSetLayoutBindings.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    waterHeightImageDescriptorSetLayoutBindings.descriptorCount = 1;
+    waterHeightImageDescriptorSetLayoutBindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    waterHeightImageDescriptorSetLayoutBindings.pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo frameBufDescriptorSetLayoutCreateInfo;
     frameBufDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -202,6 +211,13 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     sampledImageDescriptorSetLayoutCreateInfo.bindingCount = 1;
     sampledImageDescriptorSetLayoutCreateInfo.pBindings = &sampledImageDescriptorSetLayoutBindings;
 
+    VkDescriptorSetLayoutCreateInfo waterHeightImageDescriptorSetLayoutCreateInfo;
+    waterHeightImageDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    waterHeightImageDescriptorSetLayoutCreateInfo.pNext = nullptr;
+    waterHeightImageDescriptorSetLayoutCreateInfo.flags = 0;
+    waterHeightImageDescriptorSetLayoutCreateInfo.bindingCount = 1;
+    waterHeightImageDescriptorSetLayoutCreateInfo.pBindings = &waterHeightImageDescriptorSetLayoutBindings;
+
     result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &frameBufDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[0]);
     if (result != VK_SUCCESS)
     {
@@ -224,6 +240,13 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     }
 
     result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &sampledImageDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[3]);
+    if (result != VK_SUCCESS)
+    {
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        return false;
+    }
+
+    result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &waterHeightImageDescriptorSetLayoutCreateInfo, s_allocator, &waterRenderPass.m_vulkanDescriptorSetLayouts[4]);
     if (result != VK_SUCCESS)
     {
         DUCK_DEMO_VULKAN_ASSERT(result);
@@ -297,49 +320,63 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
         return false;
     }
 
-    result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.vert", shaderc_glsl_vertex_shader, &waterRenderPass.m_vertexShader);
-    if (result != VK_SUCCESS)
     {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
+        shaderc_compile_options_t compileOptions = shaderc_compile_options_initialize();
+        if (compileOptions == nullptr)
+        {
+            DUCK_DEMO_ASSERT(false);
+            return false;
+        }
+
+        const std::string useWaterTexture = "USE_WATER_TEXTURE";
+        shaderc_compile_options_add_macro_definition(compileOptions, useWaterTexture.c_str(), static_cast<size_t>(useWaterTexture.size()), nullptr, 0);
+
+        result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.vert", shaderc_glsl_vertex_shader, &waterRenderPass.m_vertexShader, compileOptions);
+        if (result != VK_SUCCESS)
+        {
+            DUCK_DEMO_VULKAN_ASSERT(result);
+            return false;
+        }
     }
     
-    shaderc_compile_options_t compileOptions = shaderc_compile_options_initialize();
-    if (compileOptions == nullptr)
     {
-        DUCK_DEMO_ASSERT(false);
-        return false;
-    }
+        shaderc_compile_options_t compileOptions = shaderc_compile_options_initialize();
+        if (compileOptions == nullptr)
+        {
+            DUCK_DEMO_ASSERT(false);
+            return false;
+        }
 
-    if (waterRenderPassParams.m_wireframe)
-    {
-        std::string isWireframe = "IS_WIREFRAME";
-        shaderc_compile_options_add_macro_definition(compileOptions, isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
-    }
+        if (waterRenderPassParams.m_wireframe)
+        {
+            std::string isWireframe = "IS_WIREFRAME";
+            shaderc_compile_options_add_macro_definition(compileOptions, isWireframe.c_str(), static_cast<size_t>(isWireframe.size()), nullptr, 0);
+        }
 
-    const std::string useDirectionalLight = "USE_DIRECTIONAL_LIGHT";
-    shaderc_compile_options_add_macro_definition(compileOptions, useDirectionalLight.c_str(), static_cast<size_t>(useDirectionalLight.size()), nullptr, 0);
+        const std::string useDirectionalLight = "USE_DIRECTIONAL_LIGHT";
+        shaderc_compile_options_add_macro_definition(compileOptions, useDirectionalLight.c_str(), static_cast<size_t>(useDirectionalLight.size()), nullptr, 0);
 
-    const std::string useSpotLight = "USE_SPOT_LIGHT";
-    //shaderc_compile_options_add_macro_definition(compileOptions, useSpotLight.c_str(), static_cast<size_t>(useSpotLight.size()), nullptr, 0);
+        const std::string useSpotLight = "USE_SPOT_LIGHT";
+        //shaderc_compile_options_add_macro_definition(compileOptions, useSpotLight.c_str(), static_cast<size_t>(useSpotLight.size()), nullptr, 0);
 
-    const std::string usePointLight = "USE_POINT_LIGHT";
-    //shaderc_compile_options_add_macro_definition(compileOptions, usePointLight.c_str(), static_cast<size_t>(usePointLight.size()), nullptr, 0);
+        const std::string usePointLight = "USE_POINT_LIGHT";
+        //shaderc_compile_options_add_macro_definition(compileOptions, usePointLight.c_str(), static_cast<size_t>(usePointLight.size()), nullptr, 0);
 
-    const std::string useTexture = "USE_TEXTURE";
-    shaderc_compile_options_add_macro_definition(compileOptions, useTexture.c_str(), static_cast<size_t>(useTexture.size()), nullptr, 0);
+        const std::string useTexture = "USE_TEXTURE";
+        shaderc_compile_options_add_macro_definition(compileOptions, useTexture.c_str(), static_cast<size_t>(useTexture.size()), nullptr, 0);
 
-    const std::string maxSampledTextureCount = "MAX_SAMPLED_TEXTURE_COUNT";
-    const std::string maxSampledTextureCountValue = std::to_string(waterRenderPassParams.m_maxRenderObjectCount);
-    shaderc_compile_options_add_macro_definition(compileOptions, 
-        maxSampledTextureCount.c_str(), static_cast<size_t>(maxSampledTextureCount.size()), 
-        maxSampledTextureCountValue.c_str(),  static_cast<size_t>(maxSampledTextureCountValue.size()));
+        const std::string maxSampledTextureCount = "MAX_SAMPLED_TEXTURE_COUNT";
+        const std::string maxSampledTextureCountValue = std::to_string(waterRenderPassParams.m_maxRenderObjectCount);
+        shaderc_compile_options_add_macro_definition(compileOptions, 
+            maxSampledTextureCount.c_str(), static_cast<size_t>(maxSampledTextureCount.size()), 
+            maxSampledTextureCountValue.c_str(),  static_cast<size_t>(maxSampledTextureCountValue.size()));
 
-    result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &waterRenderPass.m_fragmentShader, compileOptions);
-    if (result != VK_SUCCESS)
-    {
-        DUCK_DEMO_VULKAN_ASSERT(result);
-        return false;
+        result = Game::Get()->CompileShaderFromDisk("data/shader_src/MeshShader.frag", shaderc_glsl_fragment_shader, &waterRenderPass.m_fragmentShader, compileOptions);
+        if (result != VK_SUCCESS)
+        {
+            DUCK_DEMO_VULKAN_ASSERT(result);
+            return false;
+        }
     }
 
     std::array<VkPipelineShaderStageCreateInfo, 2> pipelineShaderStageCreateInfo;
@@ -682,6 +719,7 @@ void Render_WaterRenderPass(WaterRenderPass& waterRenderPass, VkCommandBuffer co
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 0, 1, &waterRenderPass.m_vulkanDescriptorSets[0], 0, nullptr);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 2, 1, &waterRenderPass.m_vulkanDescriptorSets[2], 0, nullptr);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 3, 1, &waterRenderPass.m_vulkanDescriptorSets[3], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipelineLayout, 4, 1, &waterRenderPass.m_vulkanDescriptorSets[4], 0, nullptr);
 
     for (const RenderObject& renderObject : renderObjects)
     {
@@ -696,4 +734,26 @@ void Render_WaterRenderPass(WaterRenderPass& waterRenderPass, VkCommandBuffer co
     }
 
     vkCmdEndRenderPass(commandBuffer);
+}
+
+void SetWaterImageView_WaterRenderPass(WaterRenderPass& waterRenderPass, VkImageView imageView)
+{
+    VkDescriptorImageInfo descriptorImageInfo;
+    descriptorImageInfo.sampler = nullptr;
+    descriptorImageInfo.imageView = imageView;
+    descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet sampledImageWriteDescriptorSet;
+    sampledImageWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    sampledImageWriteDescriptorSet.pNext = nullptr;
+    sampledImageWriteDescriptorSet.dstSet = waterRenderPass.m_vulkanDescriptorSets[4];
+    sampledImageWriteDescriptorSet.dstBinding = 0;
+    sampledImageWriteDescriptorSet.dstArrayElement = 0;
+    sampledImageWriteDescriptorSet.descriptorCount = 1;
+    sampledImageWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    sampledImageWriteDescriptorSet.pBufferInfo = nullptr;
+    sampledImageWriteDescriptorSet.pImageInfo = &descriptorImageInfo;
+    sampledImageWriteDescriptorSet.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(Game::Get()->GetVulkanDevice(), 1, &sampledImageWriteDescriptorSet, 0, nullptr);
 }

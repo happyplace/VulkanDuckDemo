@@ -22,6 +22,7 @@ struct WaterComputePass
     VkSemaphore semaphore = VK_NULL_HANDLE;
     uint32_t workGroupDispatchX = 0;
     uint32_t workGroupDispatchY = 0;
+    uint32_t currentImageOffset = c_waterComputePassTextureCount;
 };
 
 struct WaterComputePassParams
@@ -33,3 +34,4 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
 void Free_WaterComputePass(WaterComputePass& waterComputePass);
 
 void Compute_WaterComputePass(WaterComputePass& waterComputePass);
+VkImageView GetCurrImageView_WaterComputePass(WaterComputePass& waterComputePass);

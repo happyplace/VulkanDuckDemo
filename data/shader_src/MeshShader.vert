@@ -47,6 +47,11 @@ layout(std140, set = 1, binding = 0) uniform ObjectBuf
     uint uTextureIndex;
 } Object;
 
+#ifdef USE_WATER_TEXTURE
+    layout(set = 2, binding = 0) uniform sampler samplerColour;
+    layout(set = 4, binding = 0) uniform texture2D sampledWaterHeightTexture;
+#endif // USE_WATER_TEXTURE
+
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 inUV;
@@ -57,11 +62,16 @@ layout(location = 2) out vec2 outUV;
 
 void main()
 {
-    vec4 posW = vec4(aPosition, 1.0f) * Object.uWorld;
+    vec4 position = vec4(aPosition, 1.0f);
+#ifdef USE_WATER_TEXTURE
+    position.y += texture(sampler2D(sampledWaterHeightTexture, samplerColour), inUV).x;
+#endif // USE_WATER_TEXTURE 
+
+    vec4 posW = position * Object.uWorld;
     vPositionW = posW.xyz;
     gl_Position = posW * Frame.uViewProj;
 
     vNormalW = aNormal * mat3(Object.uWorld);
 
-    outUV = inUV;
+    outUV = inUV; 
 }

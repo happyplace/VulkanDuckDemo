@@ -1,13 +1,31 @@
 #version 450
 
-layout(set = 0, binding = 0, r32f) uniform image2D sampledTexture0;
-layout(set = 1, binding = 0, r32f) uniform image2D sampledTexture1;
-layout(set = 2, binding = 0, r32f) uniform image2D sampledTexture2;
+layout(set = 0, binding = 0, r32f) uniform image2D prevSolInput;
+layout(set = 1, binding = 0, r32f) uniform image2D currSolInput;
+layout(set = 2, binding = 0, r32f) uniform image2D imageOutput;
 
-layout (local_size_x = 16) in;
-layout (local_size_y = 16) in;
+layout (local_size_x = NUM_GROUPS_X) in;
+layout (local_size_y = NUM_GROUPS_Y) in;
 
 void main() 
 {
-   imageStore(sampledTexture0, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y), vec4(0.5f, 0.0f, 0.0f, 0.0f));
+   vec4 prev = imageLoad(prevSolInput, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y));
+   vec4 curr = imageLoad(currSolInput, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y));
+   vec4 currNorth = imageLoad(currSolInput, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y + 1));
+   vec4 currSouth = imageLoad(currSolInput, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y - 1));
+   vec4 currEast = imageLoad(currSolInput, ivec2(gl_GlobalInvocationID.x + 1, gl_GlobalInvocationID.y));
+   vec4 currWest = imageLoad(currSolInput, ivec2(gl_GlobalInvocationID.x - 1, gl_GlobalInvocationID.y));
+
+   float waveConstant0 = 1.0f;
+	float waveConstant1 = 1.0f;
+	float waveConstant2 = 1.0f;
+
+   float value = 
+      waveConstant0 * prev.r +
+      waveConstant1 * curr.r +
+      waveConstant2 * (currNorth.r + currSouth.r + currEast.r + currWest.r);
+
+   value = gl_GlobalInvocationID.x % 2 == 0 ? 50.0 : 0.0;
+
+   imageStore(imageOutput, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y), vec4(value, 0.0f, 0.0f, 0.0f));
 }
