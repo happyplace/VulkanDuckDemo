@@ -9,6 +9,11 @@
 constexpr uint32_t c_numWorkGroupShaderX = 16;
 constexpr uint32_t c_numWorkGroupShaderY = 16;
 
+void UpdateWaveBuf(WaterComputePass& waterComputePass)
+{
+    Game::Get()->FillVulkanBuffer(waterComputePass.waveBufBuffer, &waterComputePass.waveBuf, sizeof(waterComputePass.waveBuf));
+}
+
 bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComputePassParams& params)
 {
     VkResult result = VK_SUCCESS;
@@ -16,14 +21,14 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
     std::array<VkDescriptorPoolSize, 2> descriptorPoolSize;
     descriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     descriptorPoolSize[0].descriptorCount = 3;
-    descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+    descriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorPoolSize[1].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
     descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptorPoolCreateInfo.pNext = nullptr;
     descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    descriptorPoolCreateInfo.maxSets = 3;
+    descriptorPoolCreateInfo.maxSets = 4;
     descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSize.size());
     descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSize.data();
 
@@ -34,7 +39,6 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
         return false;
     }
 
-    for (std::size_t i = 0; i < waterComputePass.descriptorSetLayouts.size(); ++i)
     {
         VkDescriptorSetLayoutBinding descriptorSetLayoutBinding;
         descriptorSetLayoutBinding.binding = 0;
@@ -50,13 +54,83 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
         descriptorSetLayoutCreateInfo.bindingCount = 1;
         descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
 
-        result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, s_allocator, &waterComputePass.descriptorSetLayouts[i]);
+        result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, s_allocator, &waterComputePass.descriptorSetLayouts[0]);
         DUCK_DEMO_VULKAN_ASSERT(result);
         if (result != VK_SUCCESS)
         {
             return false;
         }
     }   
+
+    {
+        VkDescriptorSetLayoutBinding descriptorSetLayoutBinding;
+        descriptorSetLayoutBinding.binding = 0;
+        descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        descriptorSetLayoutBinding.descriptorCount = 1;
+        descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        descriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
+        descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetLayoutCreateInfo.pNext = nullptr;
+        descriptorSetLayoutCreateInfo.flags = 0;
+        descriptorSetLayoutCreateInfo.bindingCount = 1;
+        descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+
+        result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, s_allocator, &waterComputePass.descriptorSetLayouts[1]);
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        if (result != VK_SUCCESS)
+        {
+            return false;
+        }
+    } 
+
+    {
+        VkDescriptorSetLayoutBinding descriptorSetLayoutBinding;
+        descriptorSetLayoutBinding.binding = 0;
+        descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        descriptorSetLayoutBinding.descriptorCount = 1;
+        descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        descriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
+        descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetLayoutCreateInfo.pNext = nullptr;
+        descriptorSetLayoutCreateInfo.flags = 0;
+        descriptorSetLayoutCreateInfo.bindingCount = 1;
+        descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+
+        result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, s_allocator, &waterComputePass.descriptorSetLayouts[2]);
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        if (result != VK_SUCCESS)
+        {
+            return false;
+        }
+    } 
+
+    {
+        VkDescriptorSetLayoutBinding descriptorSetLayoutBinding;
+        descriptorSetLayoutBinding.binding = 0;
+        descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorSetLayoutBinding.descriptorCount = 1;
+        descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        descriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
+        descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetLayoutCreateInfo.pNext = nullptr;
+        descriptorSetLayoutCreateInfo.flags = 0;
+        descriptorSetLayoutCreateInfo.bindingCount = 1;
+        descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+
+        result = vkCreateDescriptorSetLayout(Game::Get()->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, s_allocator, 
+            &waterComputePass.descriptorSetLayouts[3]);
+        DUCK_DEMO_VULKAN_ASSERT(result);
+        if (result != VK_SUCCESS)
+        {
+            return false;
+        }
+    }
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -106,7 +180,7 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
         imageCreateInfo.arrayLayers = 1;
         imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageCreateInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageCreateInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageCreateInfo.queueFamilyIndexCount = 0;
         imageCreateInfo.pQueueFamilyIndices = nullptr;
@@ -121,10 +195,15 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
         memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         memoryAllocateInfo.pNext = nullptr;
         memoryAllocateInfo.allocationSize = memoryRequirements.size;
-        memoryAllocateInfo.memoryTypeIndex = Game::Get()->FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryRequirements.memoryTypeBits);
-    
+        memoryAllocateInfo.memoryTypeIndex = Game::Get()->FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryRequirements.memoryTypeBits);
+
         DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(Game::Get()->GetVulkanDevice(), &memoryAllocateInfo, s_allocator, &waterComputePass.deviceMemories[i]));
         DUCK_DEMO_VULKAN_ASSERT(vkBindImageMemory(Game::Get()->GetVulkanDevice(), waterComputePass.images[i], waterComputePass.deviceMemories[i], 0));
+
+        void* gpuMemory = nullptr;
+        vkMapMemory(Game::Get()->GetVulkanDevice(), waterComputePass.deviceMemories[i], 0, VK_WHOLE_SIZE, 0, &gpuMemory);
+        memset(gpuMemory, '\0', memoryRequirements.size);
+        vkUnmapMemory(Game::Get()->GetVulkanDevice(), waterComputePass.deviceMemories[i]);
 
         VkImageViewCreateInfo imageViewCreateInfo;
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -166,6 +245,41 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
 
         vkUpdateDescriptorSets(Game::Get()->GetVulkanDevice(), 1, &writeDescriptorSet, 0, nullptr);
     }
+    
+    {
+        DUCK_DEMO_VULKAN_ASSERT(Game::Get()->CreateVulkanBuffer(static_cast<VkDeviceSize>(sizeof(WaveBuf)), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, waterComputePass.waveBufBuffer));
+        
+        float dx = 1.0f;
+        float dt = 1.0f / 144.0f;
+        float d = params.damping * dt + 2.0f;
+        float e = (params.speed * params.speed) * (dt * dt) / (dx * dx);
+        
+        waterComputePass.waveBuf.Wc1 = (params.damping * dt - 2.0f) / d;
+        waterComputePass.waveBuf.Wc2 = (4.0f - 8.0f * e) / d;
+        waterComputePass.waveBuf.Wc3 = (2.0f * e) / d;
+        waterComputePass.waveBuf.Time = 0.0f;
+
+        UpdateWaveBuf(waterComputePass);
+    }
+
+    VkDescriptorBufferInfo waveBufDescriptorBufferInfo;
+    waveBufDescriptorBufferInfo.buffer = waterComputePass.waveBufBuffer.m_buffer;
+    waveBufDescriptorBufferInfo.offset = 0;
+    waveBufDescriptorBufferInfo.range = sizeof(WaveBuf);
+
+    VkWriteDescriptorSet waveBufWriteDescriptorSet;
+    waveBufWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    waveBufWriteDescriptorSet.pNext = nullptr;
+    waveBufWriteDescriptorSet.dstSet = waterComputePass.descriptorSets[3];
+    waveBufWriteDescriptorSet.dstBinding = 0;
+    waveBufWriteDescriptorSet.dstArrayElement = 0;
+    waveBufWriteDescriptorSet.descriptorCount = 1;
+    waveBufWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    waveBufWriteDescriptorSet.pBufferInfo = &waveBufDescriptorBufferInfo;
+    waveBufWriteDescriptorSet.pImageInfo = nullptr;
+    waveBufWriteDescriptorSet.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(Game::Get()->GetVulkanDevice(), 1, &waveBufWriteDescriptorSet, 0, nullptr);
 
     shaderc_compile_options_t compileOptions = shaderc_compile_options_initialize();
     if (compileOptions == nullptr)
@@ -376,13 +490,23 @@ void Free_WaterComputePass(WaterComputePass& waterComputePass)
     {
         vkDestroyDescriptorPool(Game::Get()->GetVulkanDevice(), waterComputePass.descriptorPool, s_allocator);
     }
+
+    waterComputePass.waveBufBuffer.Reset();
+}
+
+void Update_WaterComputePass(WaterComputePass& waterComputePass, const double deltaTime)
+{
+    waterComputePass.waveBuf.Time += static_cast<float>(deltaTime);
+    UpdateWaveBuf(waterComputePass);
 }
 
 void Compute_WaterComputePass(WaterComputePass& waterComputePass)
 {
     {
-        const uint32_t newImageOffset = waterComputePass.currentImageOffset + 1;
-        waterComputePass.currentImageOffset = newImageOffset >= c_waterComputePassTextureCount ? 0 : newImageOffset;
+        uint32_t temp = waterComputePass.prevImageOffset;
+        waterComputePass.prevImageOffset = waterComputePass.currentImageOffset;
+        waterComputePass.currentImageOffset = waterComputePass.nextImageOffset;
+        waterComputePass.nextImageOffset = temp;
     }
 
     VkCommandBufferBeginInfo commandBufferBeginInfo;
@@ -394,17 +518,44 @@ void Compute_WaterComputePass(WaterComputePass& waterComputePass)
     DUCK_DEMO_VULKAN_ASSERT(vkBeginCommandBuffer(waterComputePass.commandBuffer, &commandBufferBeginInfo));
 
     {
-        std::array<VkImageMemoryBarrier, 3> imageMemoryBarriers;
-        for (std::size_t i = 0; i < imageMemoryBarriers.size(); ++i)
-        {
-            VkImageSubresourceRange imageSubresourceRange;
-            imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageSubresourceRange.baseMipLevel = 0;
-            imageSubresourceRange.levelCount = 1;
-            imageSubresourceRange.baseArrayLayer = 0;
-            imageSubresourceRange.layerCount = 1;
+        VkImageSubresourceRange imageSubresourceRange;
+        imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageSubresourceRange.baseMipLevel = 0;
+        imageSubresourceRange.levelCount = 1;
+        imageSubresourceRange.baseArrayLayer = 0;
+        imageSubresourceRange.layerCount = 1;
 
-            VkImageMemoryBarrier& imageMemoryBarrier = imageMemoryBarriers[i];
+        std::array<VkImageMemoryBarrier, 3> imageMemoryBarriers;
+        {
+            VkImageMemoryBarrier& imageMemoryBarrier = imageMemoryBarriers[0];
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.pNext = nullptr;
+            imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageMemoryBarrier.srcQueueFamilyIndex = Game::Get()->GetVulkanGraphicsQueueIndex();
+            imageMemoryBarrier.dstQueueFamilyIndex = Game::Get()->GetVulkanComputeQueueIndex();
+            imageMemoryBarrier.image = waterComputePass.images[waterComputePass.prevImageOffset];
+            imageMemoryBarrier.subresourceRange = imageSubresourceRange;
+        }        
+
+        {
+            VkImageMemoryBarrier& imageMemoryBarrier = imageMemoryBarriers[1];
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.pNext = nullptr;
+            imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageMemoryBarrier.srcQueueFamilyIndex = Game::Get()->GetVulkanGraphicsQueueIndex();
+            imageMemoryBarrier.dstQueueFamilyIndex = Game::Get()->GetVulkanComputeQueueIndex();
+            imageMemoryBarrier.image = waterComputePass.images[waterComputePass.currentImageOffset];
+            imageMemoryBarrier.subresourceRange = imageSubresourceRange;
+        }  
+        
+        {
+            VkImageMemoryBarrier& imageMemoryBarrier = imageMemoryBarriers[2];
             imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             imageMemoryBarrier.pNext = nullptr;
             imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE;
@@ -413,50 +564,43 @@ void Compute_WaterComputePass(WaterComputePass& waterComputePass)
             imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
             imageMemoryBarrier.srcQueueFamilyIndex = Game::Get()->GetVulkanGraphicsQueueIndex();
             imageMemoryBarrier.dstQueueFamilyIndex = Game::Get()->GetVulkanComputeQueueIndex();
-            imageMemoryBarrier.image = waterComputePass.images[i];
+            imageMemoryBarrier.image = waterComputePass.images[waterComputePass.nextImageOffset];
             imageMemoryBarrier.subresourceRange = imageSubresourceRange;
-        }
+        }  
+
         vkCmdPipelineBarrier(waterComputePass.commandBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, static_cast<uint32_t>(imageMemoryBarriers.size()), imageMemoryBarriers.data());
     }
 
     vkCmdBindPipeline(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipeline);
 
-    uint32_t firstIndex = waterComputePass.currentImageOffset;
-    uint32_t secondIndex = waterComputePass.currentImageOffset + 1;
-    secondIndex = secondIndex >= c_waterComputePassTextureCount ? secondIndex - c_waterComputePassTextureCount : secondIndex;
-    uint32_t thirdIndex = waterComputePass.currentImageOffset + 2;
-    thirdIndex = thirdIndex >= c_waterComputePassTextureCount ? thirdIndex - c_waterComputePassTextureCount : thirdIndex;
-
-    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, firstIndex, 1, &waterComputePass.descriptorSets[0], 0, nullptr);
-    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, secondIndex, 1, &waterComputePass.descriptorSets[1], 0, nullptr);
-    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, thirdIndex, 1, &waterComputePass.descriptorSets[2], 0, nullptr);
+    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, waterComputePass.prevImageOffset, 1, &waterComputePass.descriptorSets[0], 0, nullptr);
+    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, waterComputePass.currentImageOffset, 1, &waterComputePass.descriptorSets[1], 0, nullptr);
+    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, waterComputePass.nextImageOffset, 1, &waterComputePass.descriptorSets[2], 0, nullptr);
+    vkCmdBindDescriptorSets(waterComputePass.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, waterComputePass.pipelineLayout, 3, 1, &waterComputePass.descriptorSets[3], 0, nullptr);
 
     vkCmdDispatch(waterComputePass.commandBuffer, waterComputePass.workGroupDispatchX, waterComputePass.workGroupDispatchY, 1);
 
     {
-        std::array<VkImageMemoryBarrier, 3> imageMemoryBarriers;
-        for (std::size_t i = 0; i < imageMemoryBarriers.size(); ++i)
-        {
-            VkImageSubresourceRange imageSubresourceRange;
-            imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageSubresourceRange.baseMipLevel = 0;
-            imageSubresourceRange.levelCount = 1;
-            imageSubresourceRange.baseArrayLayer = 0;
-            imageSubresourceRange.layerCount = 1;
+        VkImageSubresourceRange imageSubresourceRange;
+        imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageSubresourceRange.baseMipLevel = 0;
+        imageSubresourceRange.levelCount = 1;
+        imageSubresourceRange.baseArrayLayer = 0;
+        imageSubresourceRange.layerCount = 1;
 
-            VkImageMemoryBarrier& imageMemoryBarrier = imageMemoryBarriers[i];
-            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageMemoryBarrier.pNext = nullptr;
-            imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE;
-            imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageMemoryBarrier.srcQueueFamilyIndex = Game::Get()->GetVulkanComputeQueueIndex();
-            imageMemoryBarrier.dstQueueFamilyIndex = Game::Get()->GetVulkanGraphicsQueueIndex();
-            imageMemoryBarrier.image = waterComputePass.images[i];
-            imageMemoryBarrier.subresourceRange = imageSubresourceRange;
-        }
-        vkCmdPipelineBarrier(waterComputePass.commandBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, static_cast<uint32_t>(imageMemoryBarriers.size()), imageMemoryBarriers.data());
+        VkImageMemoryBarrier imageMemoryBarrier;
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.pNext = nullptr;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE;
+        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageMemoryBarrier.srcQueueFamilyIndex = Game::Get()->GetVulkanComputeQueueIndex();
+        imageMemoryBarrier.dstQueueFamilyIndex = Game::Get()->GetVulkanGraphicsQueueIndex();
+        imageMemoryBarrier.image = waterComputePass.images[waterComputePass.nextImageOffset];
+        imageMemoryBarrier.subresourceRange = imageSubresourceRange;
+
+        vkCmdPipelineBarrier(waterComputePass.commandBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
     }
 
     vkEndCommandBuffer(waterComputePass.commandBuffer);
@@ -481,8 +625,5 @@ void Compute_WaterComputePass(WaterComputePass& waterComputePass)
 
 VkImageView GetCurrImageView_WaterComputePass(WaterComputePass& waterComputePass)
 {
-    uint32_t thirdIndex = waterComputePass.currentImageOffset + 2;
-    thirdIndex = thirdIndex >= c_waterComputePassTextureCount ? thirdIndex - c_waterComputePassTextureCount : thirdIndex;
-
-    return waterComputePass.imageViews[thirdIndex];
+    return waterComputePass.imageViews[waterComputePass.nextImageOffset];
 }

@@ -403,6 +403,7 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
     }
 
     UpdateFrameBuffer();
+    Update_WaterComputePass(m_waterComputePass, gameTimer.DeltaTime());
 }
 
 void DuckDemoGame::UpdateFrameBuffer()

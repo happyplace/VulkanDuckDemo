@@ -1052,7 +1052,7 @@ void Game::ZeroVulkanBuffer(VulkanBuffer& vulkanBuffer)
 {
     void* gpuMemory = nullptr;
     vkMapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory, 0, VK_WHOLE_SIZE, 0, &gpuMemory);
-    memset(gpuMemory, NULL, vulkanBuffer.m_deviceSize);
+    memset(gpuMemory, '\0', vulkanBuffer.m_deviceSize);
     vkUnmapMemory(m_vulkanDevice, vulkanBuffer.m_deviceMemory);
 }
 
