@@ -176,7 +176,7 @@ void main()
 #ifdef USE_TEXTURE
     vec2 uv = inUV;
 #ifdef USE_TEXTURE_SAMPLE_SCALE
-    uv *= 5.0f;
+    uv *= 100.0f;
 #endif // USE_TEXTURE_SAMPLE_SCALE
     vec3 rgb = (texture(sampler2D(sampledTexture[Object.uTextureIndex], samplerColour), uv) * Object.uDiffuseAlbedo).xyz;
 #else

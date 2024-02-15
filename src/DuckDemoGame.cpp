@@ -73,7 +73,7 @@ bool DuckDemoGame::OnInit()
         renderObject.objectBufferIndex = 0;
 
         const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
-        const glm::vec3 objectScale = glm::vec3(25.0f);
+        const glm::vec3 objectScale = glm::vec3(50.0f);
         const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(270.0f), glm::radians(180.0f), glm::radians(0.0f)));
         
         renderObject.objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
@@ -104,12 +104,12 @@ bool DuckDemoGame::OnInit()
 
         UpdateObjectBuffer(renderObject, true);
         UpdateObjectTexture(renderObject, "data/FloorTiles/FloorTilesDeffuse.png", true);
-        UpdateWaterPrimitive(renderObject, 1000.0f, 1000.0f, 1000, 1000);
+        UpdateWaterPrimitive(renderObject, 50000.0f, 50000.0f, 1000, 1000);
     }
 
-    m_cameraRotationX = 0.0f;
-    m_cameraRotationY = 0.0f;
-    m_cameraPosition = glm::vec3(0.0f, -80.0f, -150.0f);
+    m_cameraRotationX = 343.919769f;
+    m_cameraRotationY = 315.912231f;
+    m_cameraPosition = glm::vec3(477.618134f, -548.98877f, -573.386658f);
     UpdateFrameBuffer();
 
     return true;
@@ -365,7 +365,6 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
 {
     CameraInput cameraInput = GetCameraInput();
 
-    constexpr float cameraMoveSpeed = 100.0f;
     constexpr float cameraTurnSpeed = 120.0f;
     constexpr float cameraRaiseSpeed = 150.0f;
 
@@ -383,8 +382,8 @@ void DuckDemoGame::OnUpdate(const GameTimer& gameTimer)
         const glm::vec3 cameraForward = m_cameraRotation * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
         const glm::vec3 cameraRight = m_cameraRotation * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 
-        m_cameraPosition += cameraForward * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * cameraInput.yMoveAxis;
-        m_cameraPosition += cameraRight * cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * cameraInput.xMoveAxis;
+        m_cameraPosition += cameraForward * m_cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * cameraInput.yMoveAxis;
+        m_cameraPosition += cameraRight * m_cameraMoveSpeed * static_cast<float>(gameTimer.DeltaTime()) * cameraInput.xMoveAxis;
     }
 
     {
@@ -415,11 +414,11 @@ void DuckDemoGame::UpdateFrameBuffer()
     const glm::mat4x4 view = glm::lookAt(m_cameraPosition, lookAtTarget, lookAtUp);
 
     const glm::mat4x4 proj = glm::perspectiveFov(
-        glm::radians(90.0f), 
+        glm::radians(80.0f), 
         static_cast<float>(m_vulkanSwapchainWidth), 
         static_cast<float>(m_vulkanSwapchainHeight), 
         1.0f, 
-        1000.0f);
+        100000.0f);
 
     FrameBuf frameBuf;
     frameBuf.uViewProj = glm::transpose(proj * view);
@@ -492,5 +491,6 @@ void DuckDemoGame::OnImGui()
     {
         m_wireframe = !m_wireframe;
     }
+    ImGui::InputFloat("Move Speed", &m_cameraMoveSpeed, 0.0f, 0.0f, "%.0f", 0);
     ImGui::End();
 }

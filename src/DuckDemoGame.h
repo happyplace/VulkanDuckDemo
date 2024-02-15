@@ -67,4 +67,5 @@ private:
     float m_cameraRotationY;
 
     bool m_wireframe = false;
+    float m_cameraMoveSpeed = 100.0f;
 };
