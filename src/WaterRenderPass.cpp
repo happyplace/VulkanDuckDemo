@@ -365,6 +365,9 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
         const std::string useTexture = "USE_TEXTURE";
         shaderc_compile_options_add_macro_definition(compileOptions, useTexture.c_str(), static_cast<size_t>(useTexture.size()), nullptr, 0);
 
+        const std::string useTextureSampleScale = "USE_TEXTURE_SAMPLE_SCALE";
+        shaderc_compile_options_add_macro_definition(compileOptions, useTextureSampleScale.c_str(), static_cast<size_t>(useTextureSampleScale.size()), nullptr, 0);
+
         const std::string maxSampledTextureCount = "MAX_SAMPLED_TEXTURE_COUNT";
         const std::string maxSampledTextureCountValue = std::to_string(waterRenderPassParams.m_maxRenderObjectCount);
         shaderc_compile_options_add_macro_definition(compileOptions, 

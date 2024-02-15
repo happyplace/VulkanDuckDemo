@@ -174,7 +174,11 @@ void main()
     vec3 toEyeW = normalize(Frame.uEyePosW - vPositionW);
 
 #ifdef USE_TEXTURE
-    vec3 rgb = (texture(sampler2D(sampledTexture[Object.uTextureIndex], samplerColour), inUV) * Object.uDiffuseAlbedo).xyz;
+    vec2 uv = inUV;
+#ifdef USE_TEXTURE_SAMPLE_SCALE
+    uv *= 5.0f;
+#endif // USE_TEXTURE_SAMPLE_SCALE
+    vec3 rgb = (texture(sampler2D(sampledTexture[Object.uTextureIndex], samplerColour), uv) * Object.uDiffuseAlbedo).xyz;
 #else
     vec3 rgb = Object.uDiffuseAlbedo.xyz;
 #endif // USE_TEXTURE
