@@ -73,8 +73,8 @@ bool DuckDemoGame::OnInit()
         renderObject.objectBufferIndex = 0;
 
         const glm::vec3 objectPosition = glm::vec3(0.0f, -2.0f, 0.0f);
-        const glm::vec3 objectScale = glm::vec3(1.0f);
-        const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(180.0f), glm::radians(180.0f), glm::radians(0.0f)));
+        const glm::vec3 objectScale = glm::vec3(25.0f);
+        const glm::quat objectRotation = glm::quat(glm::vec3(glm::radians(270.0f), glm::radians(180.0f), glm::radians(0.0f)));
         
         renderObject.objectBuf.uWorld = glm::translate(objectPosition) * glm::toMat4(objectRotation) * glm::scale(objectScale);
         renderObject.objectBuf.uWorld = glm::transpose(renderObject.objectBuf.uWorld);
@@ -84,8 +84,8 @@ bool DuckDemoGame::OnInit()
         renderObject.objectBuf.uTextureIndex = static_cast<uint>(renderObject.objectBufferIndex);
 
         UpdateObjectBuffer(renderObject, false);
-        UpdateObjectTexture(renderObject, "../kachujin_g_rosales/Kachujin_diffuse.png", false);
-        UpdateModel(renderObject, "../kachujin_g_rosales/kachujin_g_rosales.fbx");
+        UpdateObjectTexture(renderObject, "data/RubberDuck/10602_Rubber_Duck_v1_diffuse.png", false);
+        UpdateModel(renderObject, "data/RubberDuck/10602_Rubber_Duck_v1_L3.obj");
     }
     {
         RenderObject& renderObject = m_waterRenderObject;
