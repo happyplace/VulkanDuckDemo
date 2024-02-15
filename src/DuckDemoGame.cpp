@@ -103,8 +103,8 @@ bool DuckDemoGame::OnInit()
         renderObject.objectBuf.uTextureIndex = static_cast<uint>(renderObject.objectBufferIndex);
 
         UpdateObjectBuffer(renderObject, true);
-        UpdateObjectTexture(renderObject, "../rogue_texture.png", true);
-        UpdateWaterPrimitive(renderObject, 1000.0f, 1000.0f, 50, 50);
+        UpdateObjectTexture(renderObject, "data/FloorTiles/FloorTilesDeffuse.png", true);
+        UpdateWaterPrimitive(renderObject, 1000.0f, 1000.0f, 1000, 1000);
     }
 
     m_cameraRotationX = 0.0f;
