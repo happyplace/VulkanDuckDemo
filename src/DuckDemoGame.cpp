@@ -107,9 +107,9 @@ bool DuckDemoGame::OnInit()
         UpdateWaterPrimitive(renderObject, 50000.0f, 50000.0f, 1000, 1000);
     }
 
-    m_cameraRotationX = 343.919769f;
-    m_cameraRotationY = 315.912231f;
-    m_cameraPosition = glm::vec3(477.618134f, -548.98877f, -573.386658f);
+    m_cameraRotationX = m_initialCameraRotationX;
+    m_cameraRotationY = m_initialCameraRotationY;
+    m_cameraPosition = m_initialCameraPosition;
     UpdateFrameBuffer();
 
     return true;
@@ -492,5 +492,11 @@ void DuckDemoGame::OnImGui()
         m_wireframe = !m_wireframe;
     }
     ImGui::InputFloat("Move Speed", &m_cameraMoveSpeed, 0.0f, 0.0f, "%.0f", 0);
+    if (ImGui::Button("Reset Camera"))
+    {
+        m_cameraRotationX = m_initialCameraRotationX;
+        m_cameraRotationY = m_initialCameraRotationY;
+        m_cameraPosition = m_initialCameraPosition;
+    }
     ImGui::End();
 }

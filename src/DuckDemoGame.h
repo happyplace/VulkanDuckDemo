@@ -67,5 +67,9 @@ private:
     float m_cameraRotationY;
 
     bool m_wireframe = false;
-    float m_cameraMoveSpeed = 100.0f;
+    float m_cameraMoveSpeed = 500.0f;
+
+    float m_initialCameraRotationX = 343.919769f;
+    float m_initialCameraRotationY = 315.912231f;
+    glm::vec3 m_initialCameraPosition = glm::vec3(477.618134f, -548.98877f, -573.386658f);
 };
