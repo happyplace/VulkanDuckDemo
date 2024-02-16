@@ -66,10 +66,10 @@ float getwaves(vec2 position, int iterations)
 
 void main() 
 {
-   uint x = gl_GlobalInvocationID.x;
-   uint y = gl_GlobalInvocationID.y;
+  uint x = gl_GlobalInvocationID.x;
+  uint y = gl_GlobalInvocationID.y;
 
-   float waveHeight = getwaves(vec2(x, y), ITERATIONS_NORMAL);
-   waveHeight *= 100.0f;
-   imageStore(imageOutput, ivec2(x, y), vec4(waveHeight, 0.0f, 0.0f, 0.0f));
+  float waveHeight = getwaves(vec2(x, y), ITERATIONS_NORMAL);
+  waveHeight *= 200.0;
+  imageStore(imageOutput, ivec2(x, y), vec4(waveHeight, 0.0f, 0.0f, 0.0f));
 }
