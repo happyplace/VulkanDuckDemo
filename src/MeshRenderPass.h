@@ -13,8 +13,8 @@ struct MeshRenderPass
     std::vector<VkFramebuffer> m_vulkanFrameBuffers;
     VkRenderPass m_vulkanRenderPass = VK_NULL_HANDLE;
     VkDescriptorPool m_vulkanDescriptorPool = VK_NULL_HANDLE;
-    std::array<VkDescriptorSetLayout, 4> m_vulkanDescriptorSetLayouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
-    std::array<VkDescriptorSet, 4> m_vulkanDescriptorSets = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSetLayout, 5> m_vulkanDescriptorSetLayouts = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    std::array<VkDescriptorSet, 5> m_vulkanDescriptorSets = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
     VkPipelineLayout m_vulkanPipelineLayout = VK_NULL_HANDLE;
     VkShaderModule m_vertexShader = VK_NULL_HANDLE;
     VkShaderModule m_fragmentShader = VK_NULL_HANDLE;
@@ -36,3 +36,5 @@ void Free_MeshRenderPass(MeshRenderPass& meshRenderPass);
 
 void Resize_MeshRenderPass(MeshRenderPass& meshRenderPass);
 void Render_MeshRenderPass(MeshRenderPass& meshRenderPass, VkCommandBuffer commandBuffer, const std::vector<RenderObject>& renderObjects);
+
+void SetWaterImageView_MeshRenderPass(MeshRenderPass& meshRenderPass, VkImageView imageView);

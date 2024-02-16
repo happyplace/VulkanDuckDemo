@@ -63,15 +63,30 @@ layout(location = 2) out vec2 outUV;
 void main()
 {
     vec4 position = vec4(aPosition, 1.0f);
+#ifndef DUCK_WATER_SAMPLE
 #ifdef USE_WATER_TEXTURE
     position.y += texture(sampler2D(sampledWaterHeightTexture, samplerColour), inUV).x;
 #endif // USE_WATER_TEXTURE 
+#endif // DUCK_WATER_SAMPLE
 
-    vec4 posW = position * Object.uWorld;
+    mat4 world = Object.uWorld;
+#ifdef DUCK_WATER_SAMPLE
+    float offsetY = texture(sampler2D(sampledWaterHeightTexture, samplerColour), vec2(0.5f, 0.5f)).x;
+    offsetY -= 150.0;
+    mat4 offsetMat;
+    offsetMat[0].xyzw = vec4(1.0, 0.0, 0.0, 0.0);
+    offsetMat[1].xyzw = vec4(0.0, 1.0, 0.0, offsetY);
+    offsetMat[2].xyzw = vec4(0.0, 0.0, 1.0, 0.0);
+    offsetMat[3].xyzw = vec4(0.0, 0.0, 0.0, 1.0);
+
+    world = world * offsetMat;
+#endif // DUCK_WATER_SAMPLE
+
+    vec4 posW = position * world;
     vPositionW = posW.xyz;
     gl_Position = posW * Frame.uViewProj;
 
-    vNormalW = aNormal * mat3(Object.uWorld);
+    vNormalW = aNormal * mat3(world);
 
     outUV = inUV; 
 }
