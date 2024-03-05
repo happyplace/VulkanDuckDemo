@@ -167,6 +167,42 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
 
     for (uint32_t i = 0; i < c_waterComputePassTextureCount; ++i)
     {    
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingDeviceMemory = VK_NULL_HANDLE;
+
+        VkBufferCreateInfo bufferCreateInfo;
+        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.pNext = nullptr;
+        bufferCreateInfo.flags = 0;
+        bufferCreateInfo.size = static_cast<VkDeviceSize>(params.width * params.width * sizeof(float));
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferCreateInfo.queueFamilyIndexCount = 0;
+        bufferCreateInfo.pQueueFamilyIndices = nullptr;
+        VkResult result = vkCreateBuffer(Game::Get()->GetVulkanDevice(), &bufferCreateInfo, s_allocator, &stagingBuffer);
+        if (result != VK_SUCCESS)
+        {
+            DUCK_DEMO_VULKAN_ASSERT(result);
+            return result;
+        }
+
+        VkMemoryRequirements memoryRequirements;
+        vkGetBufferMemoryRequirements(Game::Get()->GetVulkanDevice(), stagingBuffer, &memoryRequirements);
+
+        VkMemoryAllocateInfo memoryAllocateInfo;
+        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        memoryAllocateInfo.pNext = nullptr;
+        memoryAllocateInfo.allocationSize = memoryRequirements.size;
+        memoryAllocateInfo.memoryTypeIndex = Game::Get()->FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryRequirements.memoryTypeBits);
+
+        DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(Game::Get()->GetVulkanDevice(), &memoryAllocateInfo, s_allocator, &stagingDeviceMemory));
+        DUCK_DEMO_VULKAN_ASSERT(vkBindBufferMemory(Game::Get()->GetVulkanDevice(), stagingBuffer, stagingDeviceMemory, 0));
+
+        void* gpuMemory = nullptr;
+        vkMapMemory(Game::Get()->GetVulkanDevice(),stagingDeviceMemory, 0, VK_WHOLE_SIZE, 0, &gpuMemory);
+        memset(gpuMemory, '\0', memoryRequirements.size);
+        vkUnmapMemory(Game::Get()->GetVulkanDevice(), stagingDeviceMemory);
+
         VkImageCreateInfo imageCreateInfo;
         imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageCreateInfo.pNext = nullptr;
@@ -185,25 +221,24 @@ bool Init_WaterComputePass(WaterComputePass& waterComputePass, const WaterComput
         imageCreateInfo.queueFamilyIndexCount = 0;
         imageCreateInfo.pQueueFamilyIndices = nullptr;
         imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
         DUCK_DEMO_VULKAN_ASSERT(vkCreateImage(Game::Get()->GetVulkanDevice(), &imageCreateInfo, s_allocator, &waterComputePass.images[i]));
 
-        VkMemoryRequirements memoryRequirements;
         vkGetImageMemoryRequirements(Game::Get()->GetVulkanDevice(), waterComputePass.images[i], &memoryRequirements);
-
-        VkMemoryAllocateInfo memoryAllocateInfo;
-        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memoryAllocateInfo.pNext = nullptr;
         memoryAllocateInfo.allocationSize = memoryRequirements.size;
-        memoryAllocateInfo.memoryTypeIndex = Game::Get()->FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryRequirements.memoryTypeBits);
+        memoryAllocateInfo.memoryTypeIndex = Game::Get()->FindMemoryByFlagAndType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryRequirements.memoryTypeBits);
 
         DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(Game::Get()->GetVulkanDevice(), &memoryAllocateInfo, s_allocator, &waterComputePass.deviceMemories[i]));
         DUCK_DEMO_VULKAN_ASSERT(vkBindImageMemory(Game::Get()->GetVulkanDevice(), waterComputePass.images[i], waterComputePass.deviceMemories[i], 0));
 
-        void* gpuMemory = nullptr;
-        vkMapMemory(Game::Get()->GetVulkanDevice(), waterComputePass.deviceMemories[i], 0, VK_WHOLE_SIZE, 0, &gpuMemory);
-        memset(gpuMemory, '\0', memoryRequirements.size);
-        vkUnmapMemory(Game::Get()->GetVulkanDevice(), waterComputePass.deviceMemories[i]);
+        Game::Get()->TransferFromStagingBufferToImage(
+            stagingBuffer, 
+            waterComputePass.images[i], 
+            1, 
+            static_cast<uint32_t>(params.width), 
+            static_cast<uint32_t>(params.width));
+
+        vkFreeMemory(Game::Get()->GetVulkanDevice(), stagingDeviceMemory, s_allocator);
+        vkDestroyBuffer(Game::Get()->GetVulkanDevice(), stagingBuffer, s_allocator);
 
         VkImageViewCreateInfo imageViewCreateInfo;
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;

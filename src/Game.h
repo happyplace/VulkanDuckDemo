@@ -32,6 +32,7 @@ public:
     // this will take the size and make sure it will align with uniform buffer alightment rules of the gpu
     VkResult CreateVulkanTexture(const std::string path, VulkanTexture& outVulkanTexture);
     int32_t FindMemoryByFlagAndType(const VkMemoryPropertyFlagBits memoryFlagBits, const uint32_t memoryTypeBits) const;
+    void TransferFromStagingBufferToImage(VkBuffer stagingBuffer, VkImage dstImage, const uint32_t mipLevels, const uint32_t width, const uint32_t height) const;
 
     SDL_Window* GetWindow() const { return m_window; }
     VkDevice GetVulkanDevice() const { return m_vulkanDevice; }

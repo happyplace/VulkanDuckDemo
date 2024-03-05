@@ -1254,6 +1254,31 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
     DUCK_DEMO_VULKAN_ASSERT(vkAllocateMemory(m_vulkanDevice, &memoryAllocateInfo, s_allocator, &outVulkanTexture.m_deviceMemory));
     DUCK_DEMO_VULKAN_ASSERT(vkBindImageMemory(m_vulkanDevice, outVulkanTexture.m_image, outVulkanTexture.m_deviceMemory, 0));
 
+    TransferFromStagingBufferToImage(stagingBuffer, outVulkanTexture.m_image, imageCreateInfo.mipLevels, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+    vkFreeMemory(m_vulkanDevice, stagingDeviceMemory, s_allocator);
+    vkDestroyBuffer(m_vulkanDevice, stagingBuffer, s_allocator);
+
+    VkImageViewCreateInfo imageViewCreateInfo;
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.pNext = nullptr;
+    imageViewCreateInfo.flags = 0;
+    imageViewCreateInfo.image = outVulkanTexture.m_image;
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = format;
+    imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = imageCreateInfo.mipLevels;
+    DUCK_DEMO_VULKAN_ASSERT(vkCreateImageView(m_vulkanDevice, &imageViewCreateInfo, s_allocator, &outVulkanTexture.m_imageView));
+
+    return VK_SUCCESS;
+}
+
+void Game::TransferFromStagingBufferToImage(VkBuffer stagingBuffer, VkImage dstImage, const uint32_t mipLevels, const uint32_t width, const uint32_t height) const
+{
     DUCK_DEMO_VULKAN_ASSERT(vkResetCommandPool(m_vulkanDevice, m_vulkanTempCommandPool, 0));
 
     VkCommandBufferBeginInfo commandBufferBeginInfo;
@@ -1266,7 +1291,7 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
     VkImageSubresourceRange imageSubresourceRange;
     imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     imageSubresourceRange.baseMipLevel = 0;
-    imageSubresourceRange.levelCount = imageCreateInfo.mipLevels;
+    imageSubresourceRange.levelCount = mipLevels;
     imageSubresourceRange.baseArrayLayer = 0;
     imageSubresourceRange.layerCount = 1;
 
@@ -1279,7 +1304,7 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.image = outVulkanTexture.m_image;
+    imageMemoryBarrier.image = dstImage;
     imageMemoryBarrier.subresourceRange = imageSubresourceRange;
 
     std::array<VkBufferImageCopy, 1> bufferImageCopies;
@@ -1302,7 +1327,7 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
     vkCmdCopyBufferToImage(
         m_vulkanTempCommandBuffer, 
         stagingBuffer, 
-        outVulkanTexture.m_image, 
+        dstImage, 
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
         static_cast<uint32_t>(bufferImageCopies.size()), 
         bufferImageCopies.data());
@@ -1315,7 +1340,7 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     imageMemoryBarrier.srcQueueFamilyIndex = 0;
     imageMemoryBarrier.dstQueueFamilyIndex = 0;
-    imageMemoryBarrier.image = outVulkanTexture.m_image;
+    imageMemoryBarrier.image = dstImage;
     imageMemoryBarrier.subresourceRange = imageSubresourceRange;
 
     vkCmdPipelineBarrier(m_vulkanTempCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
@@ -1337,24 +1362,4 @@ VkResult Game::CreateVulkanTexture(const std::string path, VulkanTexture& outVul
     // we don't want to do any sync so just wait for the fence to complete
     DUCK_DEMO_VULKAN_ASSERT(vkWaitForFences(m_vulkanDevice, 1, &m_vulkanTempFence, VK_TRUE, UINT64_MAX));
     vkResetFences(m_vulkanDevice, 1, &m_vulkanTempFence);
-
-    vkFreeMemory(m_vulkanDevice, stagingDeviceMemory, s_allocator);
-    vkDestroyBuffer(m_vulkanDevice, stagingBuffer, s_allocator);
-
-    VkImageViewCreateInfo imageViewCreateInfo;
-    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCreateInfo.pNext = nullptr;
-    imageViewCreateInfo.flags = 0;
-    imageViewCreateInfo.image = outVulkanTexture.m_image;
-    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCreateInfo.format = format;
-    imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    imageViewCreateInfo.subresourceRange.levelCount = 1;
-    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    imageViewCreateInfo.subresourceRange.layerCount = imageCreateInfo.mipLevels;
-    DUCK_DEMO_VULKAN_ASSERT(vkCreateImageView(m_vulkanDevice, &imageViewCreateInfo, s_allocator, &outVulkanTexture.m_imageView));
-
-    return VK_SUCCESS;
 }
