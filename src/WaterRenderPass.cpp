@@ -21,7 +21,7 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     attachmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
     attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     attachmentDescriptions[1].flags = 0;
@@ -29,7 +29,7 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     attachmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -54,14 +54,14 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     subpassDescription.preserveAttachmentCount = 0;
     subpassDescription.pPreserveAttachments = nullptr;
 
-    // VkSubpassDependency subpassDependency;
-    // subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    // subpassDependency.dstSubpass = 0;
-    // subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    // subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    // subpassDependency.srcAccessMask = 0;
-    // subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    // subpassDependency.dependencyFlags = 0;
+    VkSubpassDependency subpassDependency;
+    subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    subpassDependency.dstSubpass = 0;
+    subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpassDependency.srcAccessMask = 0;
+    subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    subpassDependency.dependencyFlags = 0;
 
     VkRenderPassCreateInfo renderPassCreateInfo;
     renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -71,10 +71,10 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
     renderPassCreateInfo.pAttachments = attachmentDescriptions.data();
     renderPassCreateInfo.subpassCount = 1;
     renderPassCreateInfo.pSubpasses = &subpassDescription;
-    //renderPassCreateInfo.dependencyCount = 1;
-    //renderPassCreateInfo.pDependencies = &subpassDependency;
-    renderPassCreateInfo.dependencyCount = 0;
-    renderPassCreateInfo.pDependencies = nullptr;
+    renderPassCreateInfo.dependencyCount = 1;
+    renderPassCreateInfo.pDependencies = &subpassDependency;
+    // renderPassCreateInfo.dependencyCount = 0;
+    // renderPassCreateInfo.pDependencies = nullptr;
 
     DUCK_DEMO_VULKAN_ASSERT(vkCreateRenderPass(Game::Get()->GetVulkanDevice(), &renderPassCreateInfo, s_allocator, &waterRenderPass.m_vulkanRenderPass));
 
@@ -529,12 +529,12 @@ bool Init_WaterRenderPass(WaterRenderPass& waterRenderPass, const WaterRenderPas
 
     VkStencilOpState stencilOpStateFront;
     stencilOpStateFront.failOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateFront.passOp = VK_STENCIL_OP_KEEP;
+    stencilOpStateFront.passOp = VK_STENCIL_OP_REPLACE;
     stencilOpStateFront.depthFailOp = VK_STENCIL_OP_KEEP;
-    stencilOpStateFront.compareOp = VK_COMPARE_OP_NEVER;
+    stencilOpStateFront.compareOp = VK_COMPARE_OP_GREATER;
     stencilOpStateFront.compareMask = ~0;
     stencilOpStateFront.writeMask = ~0;
-    stencilOpStateFront.reference = 0;
+    stencilOpStateFront.reference = 1;
 
     VkStencilOpState stencilOpStateBack;
     stencilOpStateBack.failOp = VK_STENCIL_OP_KEEP;
@@ -688,6 +688,11 @@ void Resize_WaterRenderPass(WaterRenderPass& waterRenderPass)
 
 void Render_WaterRenderPass(WaterRenderPass& waterRenderPass, VkCommandBuffer commandBuffer, const std::vector<RenderObject>& renderObjects)
 {
+    std::array<VkClearValue, 2> clearValues;
+    clearValues[0] = Game::Get()->GetVulkanClearValue();
+    clearValues[1].depthStencil.depth = 1.0f;
+    clearValues[1].depthStencil.stencil = 0u;
+
     VkRenderPassBeginInfo renderPassBeginInfo;
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.pNext = nullptr;
@@ -697,8 +702,8 @@ void Render_WaterRenderPass(WaterRenderPass& waterRenderPass, VkCommandBuffer co
     renderPassBeginInfo.renderArea.extent.height = Game::Get()->GetVulkanSwapchainHeight();
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.clearValueCount = 0;
-    renderPassBeginInfo.pClearValues = nullptr;
+    renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassBeginInfo.pClearValues = clearValues.data();
     vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, waterRenderPass.m_vulkanPipeline);

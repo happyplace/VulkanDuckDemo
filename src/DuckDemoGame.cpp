@@ -464,13 +464,13 @@ void DuckDemoGame::OnRender()
     Compute_WaterComputePass(m_waterComputePass);
 
     {
-        SetWaterImageView_MeshRenderPass(
-            m_meshRenderPasses[meshRenderPassType],
-            GetCurrImageView_WaterComputePass(m_waterComputePass));
-
-        std::vector<RenderObject> renderObjects;
-        renderObjects.push_back(m_duckRenderObject);
-        Render_MeshRenderPass(m_meshRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, renderObjects);
+       SetWaterImageView_MeshRenderPass(
+           m_meshRenderPasses[meshRenderPassType],
+           GetCurrImageView_WaterComputePass(m_waterComputePass));
+    	
+       std::vector<RenderObject> renderObjects;
+       renderObjects.push_back(m_duckRenderObject);
+       Render_MeshRenderPass(m_meshRenderPasses[meshRenderPassType], m_vulkanPrimaryCommandBuffer, renderObjects);
     }
 
     {
